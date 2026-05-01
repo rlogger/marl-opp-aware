@@ -43,9 +43,10 @@ from jaxmarl.wrappers.baselines import CTRolloutManager, MPELogWrapper, load_par
 
 
 LOGDIR     = "logs/MPE_simple_tag_v3"
-NUM_STEPS  = 20         # T (trajectory horizon)
+NUM_STEPS  = 50         # T (trajectory horizon)
 HIDDEN     = 64         # Exp 2 trained with HIDDEN_SIZE=64
 OBSTACLES  = [[0.5, 0.5], [-0.5, -0.5]]
+ENV_MAX_STEPS = 200     # large value so the episode does not auto-reset within T
 
 # Reading A: 9 checkpoints x NUM_EPS_A
 CHECKPOINTS_A = [
@@ -93,7 +94,8 @@ def rollout_one_checkpoint(
         prey_rew   (N, T)
     """
     cfg = _variant_kwargs(variant)
-    base_env = SimpleTagStaticMPE(obstacle_positions=OBSTACLES, **cfg)
+    base_env = SimpleTagStaticMPE(obstacle_positions=OBSTACLES,
+                                  max_steps=ENV_MAX_STEPS, **cfg)
     teams    = split_teams(base_env)
     env      = MPELogWrapper(base_env)
     wrapped  = CTRolloutManager(env, batch_size=num_eps)
