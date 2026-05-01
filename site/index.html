@@ -672,7 +672,7 @@ dl.kv dd { margin: 0; color: var(--fg-2); }
       <li><a href="#exp3">Exp 3</a></li>
       <li><a href="#exp2">Exp 2</a></li>
       <li><a href="#exp1">Exp 1</a></li>
-      <li><a href="#docs">Docs</a></li>
+      <li><a href="#repro">Repro</a></li>
       <li><a href="https://github.com/rlogger/marl-opp-aware" class="main-cta" target="_blank" rel="noopener">GitHub</a></li>
     </ul>
   </div>
@@ -1377,7 +1377,7 @@ coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
     </p>
 
     <figure>
-      <img src="../plots/traj_vae_loss.png" alt="VAE training curves: ELBO, reconstruction MSE, and KL all stabilising">
+      <img src="../plots/traj_vae_prey_loss.png" alt="Prey VAE training curves: ELBO, reconstruction MSE, and KL all stabilising">
       <figcaption>
         <strong>VAE training is healthy.</strong> ELBO stabilises, reconstruction
         MSE drops cleanly and validation tracks training (no overfitting on
@@ -1388,7 +1388,7 @@ coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
     </figure>
 
     <figure>
-      <img src="../plots/vae_A_latent_traversal.png" alt="5x5 grid of decoded trajectories along the top-2 principal axes of the VAE latent">
+      <img src="../plots/vae_prey_A_latent_traversal.png" alt="5x5 grid of decoded prey trajectories along the top-2 principal axes of the VAE latent">
       <figcaption>
         <strong>Decoded trajectories along the top-2 principal axes of z.</strong>
         Each panel decodes a different point on a uniform grid in
@@ -1402,7 +1402,7 @@ coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
     </figure>
 
     <figure>
-      <img src="../plots/vae_A_sweep.png" alt="GMM and KMeans clustering metrics in the VAE latent vs k, including ARI and NMI vs ground truth">
+      <img src="../plots/vae_prey_A_sweep.png" alt="GMM and KMeans clustering metrics on the prey VAE latent vs k, including ARI and NMI vs ground truth">
       <figcaption>
         <strong>Clustering metrics on z (Reading A).</strong> BIC has a shallow
         minimum near <code>k = 3</code>, silhouette is small at every k, and
@@ -1413,7 +1413,7 @@ coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
     </figure>
 
     <figure>
-      <img src="../plots/vae_A_confusion_k3.png" alt="GMM(k=3) confusion matrix in VAE latent space vs ground truth — same per-row distribution across all checkpoints">
+      <img src="../plots/vae_prey_A_confusion_k3.png" alt="GMM(k=3) confusion matrix in prey VAE latent space vs ground truth — same per-row distribution across all checkpoints">
       <figcaption>
         <strong>GMM(k = 3) confusion matrix in z, Reading A.</strong> Every
         ground-truth checkpoint distributes its 100 trajectories across the same
@@ -1438,6 +1438,114 @@ coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
         single rollout.
       </p>
     </div>
+
+    <h4>3. The same VAE pipeline, applied to each predator</h4>
+
+    <p>
+      The Reading A dataset records all four agents' trajectories per episode,
+      so the same MLP-VAE recipe runs unchanged on
+      <code>pred_0</code>, <code>pred_1</code>, <code>pred_2</code>. Three
+      separate VAEs, one per predator slot. Code-wise the change is one
+      <code>--agent</code> flag:
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/train_traj_vae.py" target="_blank" rel="noopener">train_traj_vae.py</a>,
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/verify_vae_modes.py" target="_blank" rel="noopener">verify_vae_modes.py</a>.
+    </p>
+
+    <p>
+      All three predator VAEs train healthily — KL settles at ~9 nats / sample,
+      no posterior collapse, validation tracks training. The latent traversals
+      are visibly more interpretable than the prey's: each PC1 / PC2 grid shows
+      a smooth manifold of "head this way" trajectories rather than the prey's
+      undirected wandering. That's consistent with predator behaviour being
+      goal-directed (chase the prey from wherever you spawned), so the latent
+      naturally organises along arena geometry.
+    </p>
+
+    <figure>
+      <img src="../plots/vae_pred_0_A_latent_traversal.png" alt="Decoded predator-0 trajectories along the top-2 principal axes of z">
+      <figcaption>
+        <strong>pred_0 — decoded trajectories across PC1 / PC2 of z.</strong>
+        PC1 (left → right) controls horizontal commitment of the chase.
+        PC2 (bottom → top) controls vertical bias. The smooth interpolation
+        across the grid is the trajectory manifold the VAE learned.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <img src="../plots/vae_pred_1_A_latent_traversal.png" alt="Decoded predator-1 trajectories along the top-2 principal axes of z">
+      <figcaption>
+        <strong>pred_1 — same recipe.</strong> Two visible regimes — orbit
+        the lower-left obstacle versus head toward the upper-right — sit at
+        the extremes of the latent.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <img src="../plots/vae_pred_2_A_latent_traversal.png" alt="Decoded predator-2 trajectories along the top-2 principal axes of z">
+      <figcaption>
+        <strong>pred_2 — same recipe.</strong> Slightly different geometry
+        from pred_0 / pred_1 because the third predator's reset distribution
+        differs, but the same kind of smooth directional manifold.
+      </figcaption>
+    </figure>
+
+    <h4>Predator clustering numbers, side-by-side with the prey</h4>
+
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th style="text-align:right">Reading A: max ARI vs ground truth</th>
+          <th style="text-align:right">Max NMI</th>
+          <th style="text-align:right">Reading B: best-BIC k</th>
+          <th style="text-align:right">BIC drop (k=1 → k_best)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>prey</code></td>
+          <td class="num">0.008</td>
+          <td class="num">0.024</td>
+          <td class="num">1</td>
+          <td class="num">≈ 0</td>
+        </tr>
+        <tr>
+          <td><code>pred_0</code></td>
+          <td class="num">0.025</td>
+          <td class="num">0.061</td>
+          <td class="num">4</td>
+          <td class="num">−750</td>
+        </tr>
+        <tr>
+          <td><code>pred_1</code></td>
+          <td class="num">0.023</td>
+          <td class="num">0.054</td>
+          <td class="num">3</td>
+          <td class="num">−812</td>
+        </tr>
+        <tr>
+          <td><code>pred_2</code></td>
+          <td class="num">0.017</td>
+          <td class="num">0.043</td>
+          <td class="num">3</td>
+          <td class="num">−765</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Two patterns. <strong>Reading A</strong>: predator latents recover the
+      9 ground-truth checkpoints two to three times better than the prey
+      latent does, but ARI ≈ 0.02 is still essentially at-chance — the latent
+      is organising trajectories along arena geometry, not along the policy
+      that produced them. <strong>Reading B</strong>: a single predator's
+      900 rollouts under one fixed policy are clearly multi-modal in the
+      latent (BIC drops 700–800 nats from k = 1 to k_best ≈ 3 / 4), while the
+      prey's are not. The predator modes track <em>which obstacle the chase
+      ends up around</em>, which depends on the joint reset positions of all
+      four agents — so even one policy produces several recurring
+      trajectory shapes when initial conditions vary.
+    </p>
 
     <h4>Implications for the proposed pipeline</h4>
 
@@ -1686,60 +1794,11 @@ coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
   </div>
 </section>
 
-<!-- ======================= DOCS ======================= -->
-<section id="docs">
+<!-- ======================= REPRO ======================= -->
+<section id="repro">
   <div class="wrap-reading">
-    <div class="section-kicker">§6 Deeper reading</div>
-    <h2>Documentation in the repository.</h2>
-    <p class="section-sub">
-      Everything on this page is condensed from the Markdown docs in <code>docs/</code>.
-      Each one is self-contained — pick whichever matches your use case.
-    </p>
-
-    <div class="docs-grid">
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/README.md" target="_blank" rel="noopener">
-        <span class="doc-title">README.md</span>
-        <p class="doc-sub">Overview of all three experiments with numerical results. Start here.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/01_guide.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/01_guide.md</span>
-        <p class="doc-sub">Technical walkthrough. Architecture, algorithm, line-by-line references. ~200 lines.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/02_demo.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/02_demo.md</span>
-        <p class="doc-sub">Talk scripts — 10-min Exp 3, 5-min Exp 2, 6-min archived Exp 1. Timing tables and anti-patterns.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/03_qa.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/03_qa.md</span>
-        <p class="doc-sub">33 anticipated audience questions with short + detailed answers. Use as a Q&amp;A drill deck.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/04_quiz.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/04_quiz.md</span>
-        <p class="doc-sub">Self-check quiz. Target &gt; 80 % pass before presenting.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/05_cheatsheet.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/05_cheatsheet.md</span>
-        <p class="doc-sub">Numbers, glossary, code-reference tables. The single-page card to keep open during a demo.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/06_codebase.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/06_codebase.md</span>
-        <p class="doc-sub">File-by-file code tour with line numbers, plus a question-to-figure presentation map.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/07_next_steps.md" target="_blank" rel="noopener">
-        <span class="doc-title">docs/07_next_steps.md</span>
-        <p class="doc-sub">Proposed next experiments motivated by FormulaZero (ICML 2020) and Inverse Preference Learning (NeurIPS 2023), with cost estimates and decision criteria.</p>
-      </a>
-      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/PRESENT.md" target="_blank" rel="noopener">
-        <span class="doc-title">PRESENT.md</span>
-        <p class="doc-sub">Pre-demo checklist, verbatim openers, flashcard numbers, emergency fallback commands.</p>
-      </a>
-      <a class="doc-card" href="pp_cotrain.pptx" target="_blank" rel="noopener">
-        <span class="doc-title">pp_cotrain.pptx ↓</span>
-        <p class="doc-sub">10-slide PowerPoint summary. Title · setup · three experiments · mechanism · takeaways · refs. ~610 KB.</p>
-      </a>
-    </div>
-
-    <h3>Reproducing the results</h3>
+    <div class="section-kicker">§6 Reproducing</div>
+    <h2>Reproducing the results.</h2>
 
     <pre><code># Environment
 python3.11 -m venv .venv && source .venv/bin/activate
