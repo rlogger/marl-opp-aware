@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opponent-Aware IQL in a Predator–Prey MPE</title>
+<style>
+:root {
+  --bg: #fbfaf7;
+  --bg-2: #ffffff;
+  --bg-3: #f3f1ec;
+  --fg: #171717;
+  --fg-2: #3b3b3b;
+  --fg-3: #6b6b6b;
+  --fg-4: #9a9a9a;
+  --accent: #0d6e7a;
+  --accent-soft: #cfe4e7;
+  --accent-2: #b85c10;
+  --border: #e5e2dc;
+  --border-strong: #cfcbc3;
+  --code-bg: #f0ede6;
+  --red: #b44233;
+  --red-soft: #f4d9d4;
+  --green: #1f7a4e;
+  --green-soft: #d2ead9;
+  --blue: #2c5aa0;
+  --blue-soft: #d6e0f2;
+  --amber: #c28c2a;
+  --amber-soft: #f4e5c4;
+  --shadow: 0 2px 6px rgba(20,20,20,0.04), 0 12px 36px rgba(20,20,20,0.05);
+  --shadow-strong: 0 4px 10px rgba(20,20,20,0.06), 0 20px 60px rgba(20,20,20,0.08);
+  --radius: 10px;
+  --radius-lg: 18px;
+  --max-w: 1120px;
+  --max-w-reading: 780px;
+  --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 70px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+a:hover { border-bottom-color: var(--accent); }
+p { margin: 0.6em 0; color: var(--fg-2); }
+h1, h2, h3, h4 { line-height: 1.25; color: var(--fg); font-weight: 700; letter-spacing: -0.015em; }
+h1 { font-size: 2.6rem; margin: 0 0 0.3em; }
+h2 { font-size: 1.7rem; margin: 0 0 0.5em; }
+h3 { font-size: 1.15rem; margin: 1.5em 0 0.4em; color: var(--fg); }
+h4 { font-size: 1rem; margin: 1.2em 0 0.3em; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+code { font-family: var(--mono); font-size: 0.92em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; color: var(--fg); }
+pre code { background: transparent; padding: 0; }
+pre { background: var(--code-bg); border-radius: var(--radius); padding: 1em 1.2em; overflow-x: auto; font-size: 0.87em; line-height: 1.55; border: 1px solid var(--border); }
+strong { color: var(--fg); font-weight: 700; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 3em 0; }
+
+/* ------ layout ------ */
+.wrap {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 28px;
+}
+.wrap-reading {
+  max-width: var(--max-w-reading);
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+/* ------ nav ------ */
+nav.top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(251,250,247,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+nav.top .wrap {
+  display: flex;
+  align-items: center;
+  height: 58px;
+  gap: 28px;
+}
+nav.top .brand {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+nav.top .brand .dot { color: var(--accent); }
+nav.top ul { list-style: none; display: flex; gap: 22px; margin: 0; padding: 0; margin-left: auto; }
+nav.top ul a { color: var(--fg-3); font-size: 0.9rem; font-weight: 500; border: 0; }
+nav.top ul a:hover { color: var(--fg); }
+nav.top ul a.main-cta {
+  color: white;
+  background: var(--accent);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+nav.top ul a.main-cta:hover { background: #0b5d68; color: white; }
+
+/* ------ hero ------ */
+header.hero {
+  padding: 90px 0 70px;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 85% 12%, rgba(13,110,122,0.09), transparent 45%),
+    radial-gradient(circle at 15% 90%, rgba(184,92,16,0.06), transparent 40%);
+}
+header.hero .kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+header.hero h1 { max-width: 900px; }
+header.hero .tagline {
+  font-size: 1.18rem;
+  color: var(--fg-2);
+  max-width: 720px;
+  margin-top: 0.8em;
+}
+header.hero .meta {
+  display: flex;
+  gap: 28px;
+  font-size: 0.85rem;
+  color: var(--fg-3);
+  margin-top: 26px;
+  flex-wrap: wrap;
+}
+header.hero .meta .pill {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--fg-2);
+}
+
+/* ------ sections ------ */
+section {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--border);
+}
+section:last-of-type { border-bottom: 0; }
+.section-kicker {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.section-sub {
+  color: var(--fg-3);
+  font-size: 1.05rem;
+  max-width: 760px;
+  margin-top: 0.2em;
+  margin-bottom: 1.6em;
+}
+
+/* ------ stat grid ------ */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 26px 0;
+}
+.stat-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.stat-card .num {
+  font-family: var(--mono);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.stat-card .num.small { font-size: 1.25rem; }
+.stat-card .label {
+  font-size: 0.82rem;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+.stat-card.accent { background: var(--accent-soft); border-color: transparent; }
+.stat-card.accent .num { color: var(--accent); }
+.stat-card.accent .label { color: var(--accent); }
+
+/* ------ callouts ------ */
+.callout {
+  background: var(--bg-2);
+  border-left: 4px solid var(--accent);
+  padding: 16px 22px;
+  border-radius: 6px;
+  margin: 22px 0;
+  color: var(--fg-2);
+  box-shadow: var(--shadow);
+}
+.callout.green { border-color: var(--green); background: #f1f8f4; }
+.callout.amber { border-color: var(--amber); background: #fbf6e8; }
+.callout.red   { border-color: var(--red); background: #fcf0ed; }
+.callout.blue  { border-color: var(--blue); background: #edf2fb; }
+.callout .label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 4px;
+}
+.callout.green .label { color: var(--green); }
+.callout.amber .label { color: var(--amber); }
+.callout.red .label   { color: var(--red); }
+.callout.blue .label  { color: var(--blue); }
+.callout p { margin: 0.35em 0; color: var(--fg-2); }
+.callout p:first-of-type { margin-top: 0; }
+.callout p:last-child { margin-bottom: 0; }
+
+/* ------ figure ------ */
+figure {
+  margin: 30px 0;
+  padding: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-bottom: 1px solid var(--border);
+}
+figure figcaption {
+  padding: 14px 22px 16px;
+  font-size: 0.88rem;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+figure figcaption strong { color: var(--fg); }
+figure.no-border { background: transparent; border: 0; box-shadow: none; }
+figure.no-border img { border: 0; border-radius: var(--radius); }
+
+/* ------ details / expandable ------ */
+details.explain {
+  background: var(--bg-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 0;
+  margin: 14px 0;
+  overflow: hidden;
+}
+details.explain > summary {
+  list-style: none;
+  padding: 11px 18px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--fg-2);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+details.explain > summary::-webkit-details-marker { display: none; }
+details.explain > summary::before {
+  content: "+";
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  margin-right: 10px;
+  color: var(--accent);
+  transition: transform 0.15s;
+  display: inline-block;
+  width: 14px;
+}
+details.explain[open] > summary::before { content: "–"; }
+details.explain[open] > summary { border-bottom: 1px solid var(--border); }
+details.explain .inner { padding: 12px 20px 18px; font-size: 0.93rem; color: var(--fg-2); }
+details.explain .inner p { margin: 0.5em 0; }
+details.explain .inner p:first-child { margin-top: 0; }
+details.explain .inner p:last-child { margin-bottom: 0; }
+
+/* ------ tables ------ */
+table.results {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 22px 0;
+  font-size: 0.92rem;
+}
+table.results th, table.results td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+table.results th {
+  font-weight: 600;
+  color: var(--fg-3);
+  background: var(--bg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+}
+table.results tbody tr:hover { background: var(--bg-3); }
+table.results td.num { font-family: var(--mono); text-align: right; }
+
+/* ------ tournament matrix ------ */
+.tourney {
+  display: grid;
+  grid-template-columns: 160px repeat(3, 1fr);
+  gap: 8px;
+  margin: 22px 0;
+}
+.tourney .hdr {
+  font-size: 0.8rem;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 8px;
+  text-align: center;
+  font-weight: 700;
+}
+.tourney .hdr.corner { font-size: 0.72rem; color: var(--fg-4); text-align: right; }
+.tourney .rowlabel {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--fg-2);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-weight: 600;
+  background: var(--bg-3);
+  border-radius: 6px;
+}
+.tourney .cell {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  text-align: center;
+  position: relative;
+}
+.tourney .cell .big {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+.tourney .cell .pm {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+.tourney .cell .tag {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  font-size: 0.62rem;
+  color: var(--fg-4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tourney .cell.pred-wins { background: #fcecea; border-color: #f2c1b9; }
+.tourney .cell.pred-wins .big { color: var(--red); }
+.tourney .cell.prey-wins { background: #ebf3f1; border-color: #b8dccb; }
+.tourney .cell.prey-wins .big { color: var(--green); }
+.tourney .cell.neutral { background: var(--bg-2); }
+.tourney .axis-top {
+  grid-column: 2 / 5;
+  font-size: 0.75rem;
+  color: var(--fg-3);
+  text-align: center;
+  padding-bottom: 4px;
+  font-weight: 600;
+}
+.tourney .axis-left {
+  grid-row: 3 / 6;
+  grid-column: 1;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  font-size: 0.75rem;
+  color: var(--fg-3);
+  text-align: center;
+  padding-right: 8px;
+  font-weight: 600;
+}
+
+/* ------ variant cards ------ */
+.variant-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 26px 0;
+}
+@media (max-width: 760px) {
+  .variant-grid { grid-template-columns: 1fr; }
+  .tourney { grid-template-columns: 100px repeat(3, 1fr); }
+  .tourney .cell .big { font-size: 1.15rem; }
+}
+.variant-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+}
+.variant-card h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: var(--fg);
+  font-size: 0.95rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 700;
+}
+.variant-card .vtag {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.variant-card.baseline .vtag { background: var(--bg-3); color: var(--fg-2); }
+.variant-card.aware .vtag { background: var(--accent-soft); color: var(--accent); }
+.variant-card.plan .vtag { background: #fbe5ce; color: var(--accent-2); }
+.variant-card p { font-size: 0.9rem; color: var(--fg-2); margin: 0.3em 0; }
+.variant-card .detail { font-size: 0.82rem; color: var(--fg-3); margin-top: 8px; font-family: var(--mono); }
+.variant-card .detail a,
+.variant-card .detail a:visited { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
+.variant-card .detail a:hover { border-bottom-style: solid; }
+
+/* inline GitHub code references */
+a.codelink, a.codelink:visited {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+a.codelink:hover { border-color: var(--accent); background: #fff; }
+a.codelink::before { content: "↗ "; opacity: 0.55; font-size: 0.85em; }
+
+.code-refs {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 14px 18px;
+  margin: 20px 0;
+  font-size: 0.9rem;
+}
+.code-refs h4 { margin: 0 0 10px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-3); font-weight: 700; }
+.code-refs ul { list-style: none; padding: 0; margin: 0; }
+.code-refs li { padding: 4px 0; border-top: 1px solid var(--border); }
+.code-refs li:first-child { border-top: 0; }
+.code-refs .label { display: inline-block; min-width: 170px; color: var(--fg-2); }
+
+/* ------ gif gallery ------ */
+.gif-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 24px 0;
+}
+@media (max-width: 760px) { .gif-gallery { grid-template-columns: 1fr; } }
+.gif-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.gif-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
+}
+.gif-card .label {
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: var(--fg-2);
+}
+.gif-card .label .title {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ------ architecture diagram ------ */
+.arch-diagram {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  margin: 26px 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+.arch-diagram .title { font-family: var(--sans); color: var(--fg-3); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; font-weight: 600; }
+.arch-diagram .layer { color: var(--fg); padding: 3px 0; }
+.arch-diagram .node {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  margin: 0 4px;
+  background: var(--bg-3);
+  color: var(--fg);
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+.arch-diagram .node.q { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.arch-diagram .node.opp { background: #fbe5ce; color: var(--accent-2); border-color: transparent; }
+.arch-diagram .node.obs { background: #eee6d4; color: #6b551e; border-color: transparent; }
+.arch-diagram .arrow { color: var(--fg-3); margin: 0 2px; }
+
+/* ------ compare slider / side-by-side ------ */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 22px 0;
+}
+@media (max-width: 760px) { .two-col { grid-template-columns: 1fr; } }
+.two-col figure { margin: 0; }
+
+/* ------ docs grid ------ */
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+.doc-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  display: block;
+  color: var(--fg-2);
+  border-bottom-width: 1px !important;
+}
+.doc-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+}
+.doc-card .doc-title {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 5px;
+}
+.doc-card .doc-sub {
+  font-size: 0.88rem;
+  color: var(--fg-3);
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ------ list pretty ------ */
+ul.clean { padding-left: 20px; margin: 0.6em 0; }
+ul.clean li { margin-bottom: 0.4em; color: var(--fg-2); }
+ol.clean { padding-left: 22px; margin: 0.6em 0; }
+ol.clean li { margin-bottom: 0.5em; color: var(--fg-2); }
+
+/* ------ footer ------ */
+footer {
+  padding: 48px 0 70px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-3);
+}
+footer .wrap { color: var(--fg-3); font-size: 0.88rem; }
+footer a { color: var(--fg-2); border-bottom-color: var(--border); }
+footer a:hover { color: var(--accent); border-color: var(--accent); }
+footer .ref-list { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 10px 0 22px; }
+footer .ref-list a { font-family: var(--mono); font-size: 0.82rem; }
+
+/* small helper */
+.mono { font-family: var(--mono); font-size: 0.92em; }
+.dim { color: var(--fg-3); }
+.small { font-size: 0.86rem; }
+.spacer-lg { height: 36px; }
+.spacer { height: 18px; }
+
+.row-wrap { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 14px 0; font-size: 0.88rem; color: var(--fg-3); }
+.row-wrap .key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+.row-wrap .key .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot.pred { background: var(--red); }
+.dot.prey { background: var(--green); }
+.dot.obst { background: #888; }
+.dot.plan { background: var(--accent-2); }
+.dot.opp  { background: var(--accent); }
+
+/* key-value list */
+dl.kv {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 8px 24px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+}
+@media (max-width: 620px) { dl.kv { grid-template-columns: 1fr; } dl.kv dt { margin-top: 10px; } }
+dl.kv dt { color: var(--fg-3); font-family: var(--mono); font-size: 0.82rem; }
+dl.kv dd { margin: 0; color: var(--fg-2); }
+
+</style>
+</head>
+<body>
+
+<!-- ======================= NAV ======================= -->
+<nav class="top">
+  <div class="wrap">
+    <span class="brand">opponent-aware-iql<span class="dot">.</span></span>
+    <ul>
+      <li><a href="#intro">Intro</a></li>
+      <li><a href="#exp3">Exp 3</a></li>
+      <li><a href="#exp2">Exp 2</a></li>
+      <li><a href="#exp1">Exp 1</a></li>
+      <li><a href="#docs">Docs</a></li>
+      <li><a href="https://github.com/rlogger/marl-opp-aware" class="main-cta" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ======================= HERO ======================= -->
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Three experiments · JAX · MPE simple_tag_v3</div>
+    <h1>Two-team independent Q-learning,<br>
+      with opponent modelling and test-time planning.</h1>
+    <p class="tagline">
+      Two-team independent Q-learning on a predator–prey MPE, with a shared-trunk
+      opponent-action auxiliary head reused as an opponent model for Monte-Carlo
+      planning at evaluation time. Variants compared in a 3×3 paired-seed cross-play
+      tournament (three seeds per variant). A second experiment studies static
+      obstacles and a directional prey bonus.
+    </p>
+    <div class="meta">
+      <span class="pill">3 predators vs 1 prey</span>
+      <span class="pill">25-step episodes</span>
+      <span class="pill">3 seeds × 2 variants × 100 eval eps</span>
+      <span class="pill">CPU laptop, minutes to train</span>
+    </div>
+  </div>
+</header>
+
+<!-- ======================= INTRO ======================= -->
+<section id="intro">
+  <div class="wrap-reading">
+    <div class="section-kicker">§1 What this is</div>
+    <h2>Two-team independent Q-learning.</h2>
+    <p class="section-sub">
+      Before the experiments: the environment and the shared training loop.
+    </p>
+
+    <h3>Environment</h3>
+    <p>
+      JaxMARL's <code>MPE_simple_tag_v3</code>. Three predators (team <strong style="color:var(--red)">pred</strong>)
+      chase one prey (team <strong style="color:var(--green)">prey</strong>) in a 2D continuous arena with two
+      non-interactive obstacles. Each agent picks one of five discrete actions per step
+      (stay / left / right / down / up). Episodes last 25 steps. Predators earn
+      <strong>+10 per capture</strong>; prey earns <strong>−10 per capture</strong>. The
+      environment is <strong>fully observable</strong> — every agent's observation already
+      contains relative positions of every other entity, so memory is not needed.
+    </p>
+
+    <div class="row-wrap">
+      <span class="key"><span class="dot pred"></span>predator (×3)</span>
+      <span class="key"><span class="dot prey"></span>prey (×1)</span>
+      <span class="key"><span class="dot obst"></span>obstacle</span>
+      <span class="key" style="font-family:var(--mono)">5 actions, Δ reward = ±10/capture</span>
+    </div>
+
+    <h3>Two-team independent Q-learning (IQL)</h3>
+    <p>
+      Stock JaxMARL shares one Q-network across all four agents with
+      <code>vmap(…, in_axes=(None, …))</code>. In an adversarial task that's fatal —
+      predator and prey gradients collide on the same parameters and cancel. The fix is
+      straightforward: one <code>TrainState</code> per team, two separate Q-networks, a
+      shared flashbax replay buffer, and <code>split_teams(env)</code> to route obs and
+      actions appropriately. Within a team, predators share network weights (they're
+      interchangeable), which improves sample efficiency about 3× compared to per-agent
+      parameters.
+    </p>
+
+    <pre><code>teams = {"pred": ["adversary_0", "adversary_1", "adversary_2"],
+         "prey": ["agent_0"]}
+
+# per-team losses — no gradient crosstalk between teams
+L_pred = MSE(Q_pred(s,a), r_pred + γ·max Q̄_pred(s',·))   # pred adam
+L_prey = MSE(Q_prey(s,a), r_prey + γ·max Q̄_prey(s',·))   # prey adam
+
+# shared replay, per-team batches</code></pre>
+
+    <h3>Three experiments</h3>
+    <p>
+      Experiment 1 was a single-seed RNN A/B between baseline IQL and opponent-aware IQL.
+      Experiment 2 replaced random obstacle placement with a fixed geometry and added a
+      directional prey bonus in an annulus around each obstacle, paired with behavior-level
+      mining of the learned prey policy. Experiment 3 replaces the RNN with an MLP (the
+      environment is fully observable, so memory contributes only wall-clock cost), reuses
+      the trained opponent head as a one-step opponent model for Monte-Carlo planning at
+      evaluation time, runs three seeds per variant, and evaluates the variants in a 3×3
+      paired-seed cross-play tournament.
+    </p>
+
+    <div class="callout">
+      <span class="label">Jump to</span>
+      <p>
+        <a href="#exp3"><strong>Experiment 3</strong></a> — MLP-IQL, opponent-aware
+        auxiliary, tree-expanded planning, 3×3 cross-play tournament.
+        <br>
+        <a href="#exp2"><strong>Experiment 2</strong></a> — static obstacles, CW/CCW
+        prey shaping, behavior mining.
+        <br>
+        <a href="#exp1"><strong>Experiment 1 (archived)</strong></a> — single-seed RNN A/B
+        between baseline IQL and OA-IQL. Superseded by Experiment 3.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= EXP 3 ======================= -->
+<section id="exp3">
+  <div class="wrap">
+    <div class="section-kicker">§2 Experiment 3 — primary result</div>
+    <h2>Opponent-aware Q-learning, planning, and cross-play evaluation.</h2>
+    <p class="section-sub">
+      Questions: does an opponent-action auxiliary head shift the learned equilibrium
+      under self-play? Does reusing the head as an opponent model for Monte-Carlo
+      planning at evaluation amplify the shift? Is the effect symmetric between
+      predator and prey?
+    </p>
+  </div>
+
+  <div class="wrap-reading">
+
+    <!-- key numbers -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="num">3</div>
+        <div class="label">Seeds per variant</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">100</div>
+        <div class="label">Parallel eval eps per cell</div>
+      </div>
+      <div class="stat-card">
+        <div class="num small">K=5, H=3</div>
+        <div class="label">Planner: rollouts × horizon</div>
+      </div>
+      <div class="stat-card">
+        <div class="num small">~90 s</div>
+        <div class="label">Full 3×3 tournament (CPU)</div>
+      </div>
+    </div>
+
+    <h3>The three variants</h3>
+    <div class="variant-grid">
+      <div class="variant-card baseline">
+        <span class="vtag">IQL-greedy</span>
+        <h4>MLP-IQL, greedy argmax.</h4>
+        <p>
+          Plain two-team IQL with an MLP Q-net. No opponent head. Eval = pick
+          <code>argmax_a Q(obs, a)</code> deterministically. Serves as the control.
+        </p>
+        <p class="detail">
+          net: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L40-L55" target="_blank" rel="noopener">iql_teams_mlp.py:40–55</a><br>
+          team split: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L76-L80" target="_blank" rel="noopener">:76–80</a><br>
+          train loop: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L85-L500" target="_blank" rel="noopener">:85–500</a>
+        </p>
+      </div>
+      <div class="variant-card aware">
+        <span class="vtag">OA-greedy</span>
+        <h4>+ opponent-aware head (training-only).</h4>
+        <p>
+          Same Q trunk, plus an auxiliary head that predicts the opponent team's next
+          action. Cross-entropy loss, coefficient 0.5, labels from replay (free).
+          Eval = <code>argmax Q</code>. The head is discarded at inference.
+        </p>
+        <p class="detail">
+          two-head net: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L45-L71" target="_blank" rel="noopener">iql_teams_oa_mlp.py:45–71</a><br>
+          opp map <code>opp_of</code>: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L103" target="_blank" rel="noopener">:103</a><br>
+          loss + <code>opp_acc</code>: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L279-L321" target="_blank" rel="noopener">:279–321</a>
+        </p>
+      </div>
+      <div class="variant-card plan">
+        <span class="vtag">OA-plan</span>
+        <h4>+ tree-expanded planning (eval-only).</h4>
+        <p>
+          Same OA-trained net, but eval replaces <code>argmax Q</code> with Monte-Carlo
+          rollout. The opp head becomes a one-step opponent model that drives a
+          K-sample, H-step lookahead through the real JaxMARL simulator. No extra training.
+        </p>
+        <p class="detail">
+          planner factory: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L86-L175" target="_blank" rel="noopener">planning_eval.py:86–175</a><br>
+          root-action inject: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L110-L157" target="_blank" rel="noopener">:110–157</a><br>
+          opp sampling: <a href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L135-L142" target="_blank" rel="noopener">:135–142</a>
+        </p>
+      </div>
+    </div>
+
+    <h3>Architecture — the two-headed MLP</h3>
+
+    <div class="arch-diagram">
+      <div class="title">OA-IQL-MLP network (per team)</div>
+<pre>obs  <span class="arrow">──▶</span>  <span class="node obs">Dense(128)</span> <span class="arrow">──▶</span> ReLU <span class="arrow">──▶</span> <span class="node obs">Dense(128)</span> <span class="arrow">──▶</span> ReLU <span class="arrow">──┬──▶</span> <span class="node q">Dense(action_dim=5)</span>             <span class="arrow">──▶</span>  Q-values
+                                                              │
+                                                              <span class="arrow">└──▶</span> <span class="node opp">Dense(opp_n × action_dim)</span>     <span class="arrow">──▶</span>  opp-action logits
+                                                                    │
+                                                                    <span class="arrow">└─</span> CE vs opp actions from replay  (the auxiliary loss, weight 0.5)
+</pre>
+    </div>
+
+    <p>
+      Both heads read off a shared trunk. The CE on opp-action logits forces the trunk
+      to encode features that are predictive of what the opponent is about to do —
+      position-of-obstacle-relative-to-opponent, direction-of-approach, that kind of
+      thing. Those features are also useful for Q-learning, so the Q-head improves
+      incidentally. At training time the opp head is an <em>auxiliary regularizer</em>.
+      At eval time (OA-plan variant) the same weights become an <em>opponent model</em> the
+      planner samples from.
+    </p>
+
+    <details class="explain">
+      <summary>How the planner actually picks an action</summary>
+      <div class="inner">
+        <p>Per-agent (not joint) Monte-Carlo rollout (see <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L86-L175" target="_blank" rel="noopener">planning_eval.py:86–175</a>):</p>
+        <ol class="clean">
+          <li>For each of the <code>action_dim = 5</code> candidate root actions <code>a_root</code>:
+          <ul class="clean">
+            <li>Sample <code>K = 5</code> independent rollouts of horizon <code>H = 3</code>.</li>
+            <li>In each rollout, <em>this agent</em> plays <code>a_root</code> at <code>t=0</code> and <code>argmax Q</code> after — root-action injection is the single line <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L119" target="_blank" rel="noopener">planning_eval.py:119</a>.</li>
+            <li><em>Teammates</em> play <code>argmax Q</code> throughout (coordinate descent).</li>
+            <li><em>Opponents</em> are sampled from <code>Categorical(softmax(opp_head(obs)))</code> — see <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L135-L142" target="_blank" rel="noopener">:135–142</a>.</li>
+            <li>Step through the actual <code>wrapped_env.wrapped_step()</code>, accumulating <code>Σ γᵗ r</code> — <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L142-L157" target="_blank" rel="noopener">:142–157</a>.</li>
+            <li>At the leaf, bootstrap: <code>V_leaf = max_a Q(s_H, a)</code>.</li>
+          </ul></li>
+          <li>Average <code>K</code> returns per root action → one score per candidate.</li>
+          <li>Pick <code>argmax_root</code>.</li>
+        </ol>
+        <p>
+          Per-agent coordinate descent is a deliberate trade-off. A joint-action planner
+          for the three predators would score <code>5³ = 125</code> candidates per decision; per-agent
+          scores only <code>5 × 3 = 15</code>. The cost is that predator coordination is partially
+          collapsed into "each predator's independent best response given frozen
+          teammates," which — as the results show — matters.
+        </p>
+        <p><code>H = 0</code> recovers greedy Q. <code>H = 3</code> covers ~12% of a 25-step episode; with
+          <code>γ = 0.9</code>, <code>γ³ ≈ 0.73</code>, so the leaf bootstrap still contributes most of the value.</p>
+      </div>
+    </details>
+
+    <h3>Primary result — 3×3 cross-play tournament</h3>
+
+    <p>
+      For each pair <code>(pred_variant, prey_variant)</code> we pair trained nets
+      <em>by seed index</em> (so each cell is within-training-distribution for both teams),
+      run 100 parallel 32-step eval episodes, and record captures / episode. The matrix
+      is then averaged over 3 seeds.
+    </p>
+
+    <figure>
+      <img src="../plots/exp3_tournament.png" alt="Exp 3 tournament heatmaps: pred_return, prey_return, captures_per_ep">
+      <figcaption>
+        <strong>Tournament heatmaps.</strong> Rows = predator policy, columns = prey policy.
+        Three metrics side-by-side: total predator return, total prey return, captures per episode.
+        Each cell is <code>mean ± std</code> over 3 seeds × 100 eval episodes. The full figure is
+        <code>plots/exp3_tournament.png</code>.
+      </figcaption>
+    </figure>
+
+    <h4>Captures per episode — read the numbers directly</h4>
+
+    <div class="tourney">
+      <div class="hdr corner">&nbsp;</div>
+      <div class="hdr">prey<br>IQL-greedy</div>
+      <div class="hdr">prey<br>OA-greedy</div>
+      <div class="hdr">prey<br>OA-plan</div>
+
+      <div class="rowlabel">pred<br>IQL-greedy</div>
+      <div class="cell pred-wins">
+        <div class="big">3.41</div>
+        <div class="pm">± 0.53</div>
+      </div>
+      <div class="cell pred-wins">
+        <div class="big">3.64</div>
+        <div class="pm">± 0.39</div>
+      </div>
+      <div class="cell prey-wins">
+        <div class="big">1.57</div>
+        <div class="pm">± 0.15</div>
+        <div class="tag">prey best</div>
+      </div>
+
+      <div class="rowlabel">pred<br>OA-greedy</div>
+      <div class="cell pred-wins">
+        <div class="big">3.39</div>
+        <div class="pm">± 1.00</div>
+      </div>
+      <div class="cell pred-wins">
+        <div class="big">3.01</div>
+        <div class="pm">± 0.30</div>
+      </div>
+      <div class="cell prey-wins">
+        <div class="big">1.15</div>
+        <div class="pm">± 0.25</div>
+      </div>
+
+      <div class="rowlabel">pred<br>OA-plan</div>
+      <div class="cell neutral">
+        <div class="big">2.27</div>
+        <div class="pm">± 0.59</div>
+        <div class="tag">pred worst</div>
+      </div>
+      <div class="cell pred-wins">
+        <div class="big">2.80</div>
+        <div class="pm">± 0.49</div>
+      </div>
+      <div class="cell prey-wins">
+        <div class="big">1.07</div>
+        <div class="pm">± 0.30</div>
+      </div>
+    </div>
+
+    <p>
+      Read column-wise (down): the <strong>OA-plan prey column is uniformly the lowest</strong>
+      — <code>1.57, 1.15, 1.07</code> captures/ep — a ~2-capture reduction relative to the
+      other two prey columns, regardless of which predator policy it faces.
+      Read row-wise (across): the <strong>OA-plan predator row has the lowest average</strong>
+      — it's the worst pred variant across the board. Both effects hold well within error bars.
+    </p>
+
+    <div class="callout green">
+      <span class="label">Result 1 — opponent modelling disproportionately benefits the prey.</span>
+      <p>
+        Same auxiliary objective on both teams. Prey benefits dramatically; predator barely.
+        Adding planning on top amplifies the asymmetry: OA-plan prey dominates universally,
+        OA-plan pred is <em>worst</em> among pred variants.
+      </p>
+    </div>
+
+    <h3>Mechanism — opponent-head accuracy asymmetry</h3>
+
+    <figure>
+      <img src="../plots/exp3_training_curves.png" alt="Exp 3 training curves: pred return, prey return, opp-head accuracy">
+      <figcaption>
+        <strong>Training curves, mean ± std over 3 seeds.</strong> Left: predator test return.
+        Middle: prey test return. Right: opp-head classification accuracy for each team,
+        with chance (1/5 = 0.20) marked.
+      </figcaption>
+    </figure>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="num small">0.607 ± 0.021</div>
+        <div class="label">pred opp-head acc (3 seeds)</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="num small">0.674 ± 0.032</div>
+        <div class="label">prey opp-head acc (3 seeds)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num small">0.20</div>
+        <div class="label">chance (1 of 5 actions)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num small">+6.6 pp</div>
+        <div class="label">prey &gt; pred accuracy gap</div>
+      </div>
+    </div>
+
+    <div class="code-refs">
+      <h4>Opp-head implementation — direct code refs</h4>
+      <ul>
+        <li><span class="label">Two-head MLP</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L45-L71" target="_blank" rel="noopener">iql_teams_oa_mlp.py:45–71</a></li>
+        <li><span class="label">Opponent team map</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L103" target="_blank" rel="noopener">:103 (opp_of)</a></li>
+        <li><span class="label">CE loss + <code>opp_acc</code></span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L279-L321" target="_blank" rel="noopener">:279–321 (_loss_fn)</a></li>
+        <li><span class="label">Logged metrics</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L381-L382" target="_blank" rel="noopener">:381–382</a></li>
+      </ul>
+    </div>
+
+    <p>
+      The opponent-modeling task is not symmetric, even though the loss is. The prey's
+      opp head has to predict <strong>three predator actions</strong> per observation; the
+      predator's opp head has to predict <strong>one prey action</strong>. Per step, the
+      prey gets three times the CE gradient the predator gets. The prey ends up with a
+      better opponent model, which the planner consumes — and so OA-plan prey plans
+      better than OA-plan pred. The <strong>7-percentage-point gap in classifier accuracy</strong>
+      is the mechanism of the tournament outcome.
+    </p>
+
+    <details class="explain">
+      <summary>Why are the marginal return curves so flat?</summary>
+      <div class="inner">
+        <p>
+          In a zero-sum-like game, predator return and prey return are <em>shadows of each
+          other</em>. If both sides improve proportionally, the marginal training curve looks
+          unchanged — nothing to see. Equilibrium <em>shifts</em> only become visible when you
+          stress-test a policy against opponents it wasn't paired with during training — a
+          cross-play tournament. The OA-greedy vs IQL-greedy difference in the training
+          curves is under half a standard deviation. The same difference in the
+          tournament (column-mean drop from ~3.4 to ~1.3 captures/ep when prey plans) is
+          <strong>more than 3 std</strong>.
+        </p>
+        <p>
+          This is also a methodological point: if you only look at marginal training returns
+          in a self-play setup, you'll systematically miss the kind of effect this
+          experiment is about.
+        </p>
+      </div>
+    </details>
+
+    <details class="explain">
+      <summary>Why does the predator planner actually hurt?</summary>
+      <div class="inner">
+        <p>Two compounding reasons:</p>
+        <ol class="clean">
+          <li><strong>Weaker opponent model.</strong> The predator's opp head is 7 percentage
+            points less accurate than the prey's (0.60 vs 0.67). The planner samples from
+            it, so worse model → worse plan.</li>
+          <li><strong>Per-agent coordinate descent breaks predator coordination.</strong> With one
+            prey, coordinate descent is exact. With three predators, each predator plans
+            <em>as if teammates will act greedily</em> — the plan is myopic to teammate reactions
+            during the H=3 lookahead. A joint-action planner (5³ candidates) would
+            close this, but was out of scope.</li>
+        </ol>
+        <p>Fixing either would likely move OA-plan pred above IQL-greedy. Neither is a
+          deep problem with the approach — both are engineering choices we made for
+          wall-clock reasons.</p>
+      </div>
+    </details>
+
+    <h3>Summary</h3>
+    <div class="callout amber">
+      <span class="label">Finding</span>
+      <p>
+        A symmetric auxiliary objective produces an asymmetric effect in adversarial
+        co-training, driven by an asymmetry in the classification signal each team
+        receives. The side with the richer opponent-modelling task attains a better
+        opponent classifier and a better planner derived from it. Neither side's
+        marginal training return moves appreciably; the effect is observable only in
+        cross-play.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ======================= EXP 2 ======================= -->
+<section id="exp2">
+  <div class="wrap">
+    <div class="section-kicker">§3 Experiment 2 — directional reward shaping</div>
+    <h2>Static obstacles advantage the prey. Directional shaping of the prey reduces its realised return.</h2>
+    <p class="section-sub">
+      A reward-engineering study with four conditions, three seeds each. A
+      direction-only bonus around each obstacle induces a measurable CW or CCW
+      bias in the learned prey policy. The narrower trajectory distribution is
+      exploited by the coordinated predators: the prey's realised total return
+      decreases despite collecting the positive per-step bonus.
+    </p>
+  </div>
+
+  <div class="wrap-reading">
+
+    <h3>Setup</h3>
+
+    <p>
+      Subclass <code>SimpleTagMPE</code> → <code>SimpleTagStaticMPE</code> (<a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/simple_tag_static.py#L28-L130" target="_blank" rel="noopener">simple_tag_static.py:28–130</a>). Two changes.
+      <strong>1:</strong> <code>reset()</code> pins the two obstacles to fixed positions
+      <code>(0.5, 0.5)</code> and <code>(−0.5, −0.5)</code> — <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/simple_tag_static.py#L67-L81" target="_blank" rel="noopener">:67–81</a>. (Subclass rather than wrapper
+      because JaxMARL's auto-reset calls <code>self.reset()</code> directly.)
+      <strong>2:</strong> <code>step_env()</code> (<a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/simple_tag_static.py#L100-L130" target="_blank" rel="noopener">:100–130</a>) adds a per-step bonus to the prey's reward computed by
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/simple_tag_static.py#L83-L97" target="_blank" rel="noopener"><code>_circle_bonus</code> :83–97</a>:
+    </p>
+
+    <pre><code>bonus = coef · dir_sign · sign(v_prev × v_new) · 1[r_in ≤ ‖v_new‖ ≤ r_out]
+
+v_prev = prey_pos_t     − obstacle
+v_new  = prey_pos_{t+1} − obstacle
+dir_sign = +1 (CCW) or −1 (CW)
+coef = 0.1,  r_in = 0.25,  r_out = 0.6</code></pre>
+
+    <p>
+      The 2D cross product is positive for counter-clockwise motion around the obstacle,
+      negative for clockwise. The sign is extracted with <code>sign()</code> so that the
+      bonus depends only on <em>direction</em>, not <em>speed</em>. The annulus gate
+      <code>r_in ≤ ‖v‖ ≤ r_out</code> prevents the prey from parking on top of an obstacle
+      to farm. The bonus is summed over obstacles. Only the prey receives the bonus —
+      predator rewards are untouched, so the predator learning curve is a clean
+      cross-condition signal.
+    </p>
+
+    <h3>Four conditions</h3>
+
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Obstacles</th>
+          <th>Shaping</th>
+          <th style="text-align:right">Predator return ↑</th>
+          <th style="text-align:right">Captures / ep</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>random_baseline</code></td>
+          <td>randomized each reset</td>
+          <td>none</td>
+          <td class="num">+33.12</td>
+          <td class="num">3.3</td>
+        </tr>
+        <tr>
+          <td><code>static_baseline</code></td>
+          <td>fixed at (±0.5, ±0.5)</td>
+          <td>none</td>
+          <td class="num">+22.19 ± <strong>5.97</strong></td>
+          <td class="num">2.2</td>
+        </tr>
+        <tr>
+          <td><code>static_ccw</code></td>
+          <td>fixed</td>
+          <td>CCW prey bonus, r ∈ [0.25, 0.6]</td>
+          <td class="num">+26.25 ± 2.76</td>
+          <td class="num">2.6</td>
+        </tr>
+        <tr>
+          <td><code>static_cw</code></td>
+          <td>fixed</td>
+          <td>CW prey bonus, same annulus</td>
+          <td class="num">+28.23 ± 2.06</td>
+          <td class="num">2.8</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <figure>
+      <img src="../plots/static_compare_returns.png" alt="Exp 2 training curves for the four conditions, with ±std bands">
+      <figcaption>
+        <strong>Training curves, mean ± std over 3 seeds.</strong> Predator (left) and prey (right)
+        test returns across the four conditions. Shaping <em>decreases</em> prey return and
+        <em>increases</em> predator return — in the opposite direction of what a naïve
+        reading of the shaping would predict.
+      </figcaption>
+    </figure>
+
+    <div class="callout amber">
+      <span class="label">Three observations</span>
+      <p>
+        <strong>1.</strong> Static obstacles favor the prey. Removing obstacle randomness
+        lets the prey memorize stable cover — predators lose ~1.1 captures/ep versus random.
+      </p>
+      <p>
+        <strong>2.</strong> CW / CCW shaping recovers most of that gap. Either direction
+        of the annular bonus pushes predator captures from 2.2 back up to 2.6–2.8 / ep.
+      </p>
+      <p>
+        <strong>3.</strong> Shaping also collapses seed-to-seed variance (σ ≈ 6 → σ ≈ 2).
+        The bonus regularizes the prey into a narrow family of policies.
+      </p>
+    </div>
+
+    <h3>Behavior mining</h3>
+
+    <p>
+      The predator-return effect is real, but the <em>why</em> isn't in the reward curves —
+      it's in the prey's actual behavior. For each (variant × seed) we roll out 64
+      parallel 32-step greedy episodes and record (a) the prey's 2D position every step
+      and (b) the signed angular displacement around the nearest obstacle at every step.
+      Implementation: <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/exp2_behavior_mining.py" target="_blank" rel="noopener">exp2_behavior_mining.py</a> —
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/exp2_behavior_mining.py#L60-L116" target="_blank" rel="noopener">:60–116</a> rollout,
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/exp2_behavior_mining.py#L119-L136" target="_blank" rel="noopener">:119–136</a> signed-angle math.
+    </p>
+
+    <figure>
+      <img src="../plots/exp2_prey_behavior.png" alt="Exp 2 prey behavior mining: density heatmaps (top) and signed angular step histograms (bottom)">
+      <figcaption>
+        <strong>Top row: 2D prey-position density.</strong> Obstacles marked in cyan.
+        <code>baseline</code> concentrates near cover. <code>cw</code> and <code>ccw</code>
+        show visible orbital bands in the shaping annulus around each obstacle.
+        <strong>Bottom row: signed angular step per timestep</strong> (positive = CCW around
+        the nearest obstacle, negative = CW). <code>baseline</code> is symmetric around zero;
+        <code>cw</code> is biased negative; <code>ccw</code> is biased positive. Red dashed line
+        shows the mean.
+      </figcaption>
+    </figure>
+
+    <h4>The numbers behind the histograms</h4>
+
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Variant</th>
+          <th style="text-align:right">Mean Δangle (rad/step)</th>
+          <th style="text-align:right">Δangle std</th>
+          <th>Direction</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>baseline</code></td>
+          <td class="num">+0.0002</td>
+          <td class="num">0.36</td>
+          <td>≈ symmetric</td>
+        </tr>
+        <tr>
+          <td><code>cw</code></td>
+          <td class="num">−0.0108</td>
+          <td class="num">0.37</td>
+          <td><strong style="color:var(--red)">biased CW</strong> (sign matches shaping)</td>
+        </tr>
+        <tr>
+          <td><code>ccw</code></td>
+          <td class="num">+0.0091</td>
+          <td class="num">0.36</td>
+          <td><strong style="color:var(--green)">biased CCW</strong> (sign matches shaping)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout green">
+      <span class="label">Mechanism</span>
+      <p>
+        The shaping rewards a behavioural property (directional orbital motion) rather
+        than an outcome (capture avoidance). The learned prey policy satisfies the
+        property, which compresses the prey's state distribution from a broad
+        cover-and-evade manifold into a narrow CW/CCW orbital band. The coordinated
+        predators exploit the narrower support: the prey's realised total return
+        decreases despite collecting the positive per-step bonus, because the increase
+        in capture rate outweighs the accumulated shaping reward.
+      </p>
+      <p>
+        The failure mode is adversarial to the designer's intent: the shaped property
+        (direction, not speed or escape distance) is exactly the property the
+        predators can pre-commit to intercepting.
+      </p>
+    </div>
+
+    <h3>Rollouts</h3>
+
+    <div class="gif-gallery">
+      <div class="gif-card">
+        <img src="../plots/rollout_static_baseline.gif" alt="Static baseline rollout GIF">
+        <div class="label">
+          <span class="title">baseline</span>
+          Prey darts near cover, uses obstacles as shields, no stereotyped motion.
+        </div>
+      </div>
+      <div class="gif-card">
+        <img src="../plots/rollout_static_ccw.gif" alt="Static CCW rollout GIF">
+        <div class="label">
+          <span class="title">ccw — counter-clockwise</span>
+          Prey orbits counter-clockwise around the obstacles. Predators pre-position on
+          the forward orbit arc.
+        </div>
+      </div>
+      <div class="gif-card">
+        <img src="../plots/rollout_static_cw.gif" alt="Static CW rollout GIF">
+        <div class="label">
+          <span class="title">cw — clockwise</span>
+          Mirror image of CCW. Predators exploit the same structure, opposite sense.
+        </div>
+      </div>
+    </div>
+
+    <p class="small dim">
+      Each GIF is 150 steps = 6 auto-reset episodes chained together, greedy rollouts
+      from seed 0 of the corresponding static variant.
+    </p>
+
+    <h3>Per-trajectory clustering — beyond aggregate statistics</h3>
+
+    <p>
+      The behavior-mining numbers above pool 192 episodes per (variant × seed). A
+      natural follow-up is to ask whether a <em>single</em> trajectory carries enough
+      policy identity to be classifiable on its own. The answer turns out to be no —
+      not at <code>shape_coef = 0.1</code> and <code>T = 50</code>, with either
+      hand-crafted features or a learned trajectory encoder. This subsection records
+      what was tried and what the per-rollout signal actually is.
+      Implementation:
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/generate_trajectory_dataset.py" target="_blank" rel="noopener">generate_trajectory_dataset.py</a>,
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/verify_multimodality.py" target="_blank" rel="noopener">verify_multimodality.py</a>,
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/train_traj_vae.py" target="_blank" rel="noopener">train_traj_vae.py</a>,
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/verify_vae_modes.py" target="_blank" rel="noopener">verify_vae_modes.py</a>.
+    </p>
+
+    <h4>Setup — two trajectory datasets</h4>
+
+    <p>
+      Both datasets are <code>T = 50</code> prey-only rollouts. <strong>Reading A</strong>
+      is the labelled multi-checkpoint set: 9 Exp 2 checkpoints (3 variants × 3 seeds)
+      × 100 episodes = 900 trajectories. <strong>Reading B</strong> is unlabelled:
+      <code>static_baseline</code> seed 0 × 900 episodes. Reading A asks whether
+      different policies produce visibly different per-trajectory distributions;
+      Reading B asks whether one policy is multi-modal under varying initial conditions.
+    </p>
+
+    <h4>1. Hand-crafted + occupancy features</h4>
+
+    <figure>
+      <img src="../plots/multimodal_A_pca_hand.png" alt="PCA scatter of init-conditioned hand features on Reading A, all 9 ground-truth checkpoints overlapping in the same blob">
+      <figcaption>
+        <strong>PCA of init-conditioned hand-features on Reading A.</strong> Twelve
+        features per trajectory: relative final position, mean speed, time in annulus,
+        x/y range, pooled signed angular displacement, and per-obstacle in-band
+        statistics. Every checkpoint's points scatter across the same region.
+        ARI vs ground truth peaks at <code>0.008</code> across the k = 2..9 sweep —
+        chance level. The 16 × 16 occupancy histogram (PCA-30 then GMM with diagonal
+        covariance) gives the same null result.
+      </figcaption>
+    </figure>
+
+    <h4>2. MLP-VAE on flattened init-conditioned trajectories</h4>
+
+    <p>
+      A small Flax MLP-VAE: encoder
+      <code>(T·2) → 64 → 64 → (μ, log σ²) ∈ ℝ⁸</code>, decoder
+      <code>ℝ⁸ → 64 → 64 → (T·2)</code>, ELBO with KL-annealed
+      <code>β</code> over the first 2 k of 8 k Adam steps. Trained on Reading A.
+    </p>
+
+    <figure>
+      <img src="../plots/traj_vae_loss.png" alt="VAE training curves: ELBO, reconstruction MSE, and KL all stabilising">
+      <figcaption>
+        <strong>VAE training is healthy.</strong> ELBO stabilises, reconstruction
+        MSE drops cleanly and validation tracks training (no overfitting on
+        N = 810 train / 90 val), KL settles around 10 nats / sample (≈ 1.25 nats /
+        dim across the 8-dim latent). All eight latent dims have near-unit
+        posterior standard deviation — none collapsed.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <img src="../plots/vae_A_latent_traversal.png" alt="5x5 grid of decoded trajectories along the top-2 principal axes of the VAE latent">
+      <figcaption>
+        <strong>Decoded trajectories along the top-2 principal axes of z.</strong>
+        Each panel decodes a different point on a uniform grid in
+        <code>(PC1, PC2)</code> back into a trajectory. The latent has learned the
+        smooth geometry of net displacement from the start — direction and shape of
+        the curl. (Obstacles drawn at world coordinates; the small black dot is the
+        prey's start, which lives at the origin in init-conditioned decode space.)
+        This is what the unsupervised reconstruction objective rewards: a manifold
+        of plausible trajectory shapes, not policy identity.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <img src="../plots/vae_A_sweep.png" alt="GMM and KMeans clustering metrics in the VAE latent vs k, including ARI and NMI vs ground truth">
+      <figcaption>
+        <strong>Clustering metrics on z (Reading A).</strong> BIC has a shallow
+        minimum near <code>k = 3</code>, silhouette is small at every k, and
+        ARI / NMI vs the 9-checkpoint ground truth stay near zero
+        (max ARI ≈ 0.008, max NMI ≈ 0.024). The latent organises trajectories,
+        but along axes orthogonal to the policy that produced them.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <img src="../plots/vae_A_confusion_k3.png" alt="GMM(k=3) confusion matrix in VAE latent space vs ground truth — same per-row distribution across all checkpoints">
+      <figcaption>
+        <strong>GMM(k = 3) confusion matrix in z, Reading A.</strong> Every
+        ground-truth checkpoint distributes its 100 trajectories across the same
+        three latent clusters in near-identical proportions — roughly 55 / 25 / 20
+        for every row. This is what perfect non-discrimination looks like: the
+        clusters track something real (otherwise BIC wouldn't bottom at k = 3),
+        but that something is uniform across policies.
+      </figcaption>
+    </figure>
+
+    <div class="callout amber">
+      <span class="label">Why aggregate statistics work but per-trajectory clustering doesn't</span>
+      <p>
+        The shaping bonus is small (<code>shape_coef = 0.1</code>) and active only
+        inside the obstacle annulus. Most steps in a 50-step trajectory are
+        <em>outside</em> that annulus, where all three policies act roughly
+        identically — "evade the predators". The CW / CCW bias only manifests in a
+        small fraction of frames, and a per-trajectory model — features or VAE —
+        sees mostly evade-noise. Behavior mining works precisely because it pools
+        192 episodes per condition, averaging out the dominant evade signal to
+        expose the rare directional bias. That same average is unavailable in any
+        single rollout.
+      </p>
+    </div>
+
+    <h4>Implications for the proposed pipeline</h4>
+
+    <p>
+      The original three-step plan was: (1) generate a multi-modal trajectory
+      dataset, (2) train a VAE whose latent separates policies, (3) train
+      behavioural cloning conditioned on that latent. Steps 2 and 3 require step 2
+      to actually carry policy identity in z, which it does not at this shaping
+      strength and horizon. Two viable next moves:
+    </p>
+
+    <ul class="clean">
+      <li>
+        <strong>Supervise the latent.</strong> Replace the unsupervised VAE with a
+        contrastive or classification-style encoder (positive pairs = same checkpoint,
+        negative pairs = different checkpoint). This optimises directly for
+        same-policy nearness in z, instead of relying on reconstruction MSE to
+        accidentally allocate latent capacity to policy-relevant variance.
+      </li>
+      <li>
+        <strong>Strengthen the shaping.</strong> Re-train the 9 Exp 2 checkpoints
+        with <code>shape_coef = 0.5</code>. A wider behavioural gap between the
+        three variants makes the per-trajectory signal larger relative to the
+        evade-noise floor, regardless of which encoder is used downstream.
+      </li>
+    </ul>
+
+    <details class="explain">
+      <summary>Unit tests for the env — five assertions, 5 seconds</summary>
+      <div class="inner">
+        <p>
+          The shaping math is trivial but easy to get subtly wrong (sign-flip in the
+          cross product, off-by-epsilon in the annulus, wrapper vs subclass). Five
+          assertions in <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/smoke_test_static.py" target="_blank" rel="noopener">smoke_test_static.py</a>:
+        </p>
+        <ol class="clean">
+          <li><a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/smoke_test_static.py#L16-L25" target="_blank" rel="noopener">test_fixed_landmarks</a> — 10 random reset seeds, obstacles stay pinned.</li>
+          <li><a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/smoke_test_static.py#L26-L39" target="_blank" rel="noopener">test_auto_reset_preserves_landmarks</a> — step past the 25-step boundary, check they're still pinned.</li>
+          <li><a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/smoke_test_static.py#L40-L76" target="_blank" rel="noopener">test_shape_direction_sign</a> — hand-rolled tangent velocities at 12 o'clock.</li>
+          <li><a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/smoke_test_static.py#L77-L110" target="_blank" rel="noopener">test_radial_band_gating</a> — inside <code>r_in</code> or outside <code>r_out</code> earns zero bonus.</li>
+          <li><a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/smoke_test_static.py#L111-L120" target="_blank" rel="noopener">test_no_shape_when_coef_zero</a> — shaping code path pass-through when disabled.</li>
+        </ol>
+        <p>Run: <code>python src/smoke_test_static.py</code></p>
+      </div>
+    </details>
+
+    <details class="explain">
+      <summary>Caveats of this experiment</summary>
+      <div class="inner">
+        <ul class="clean">
+          <li>Only 3 seeds per static variant; <code>random_baseline</code> is a 1-seed reference from Exp 1.</li>
+          <li>Shaping coefficient 0.1 and annulus <code>[0.25, 0.6]</code> are reasonable defaults, not swept.</li>
+          <li>The <em>prey return curve</em> is contaminated by the shaping bonus itself. Read the predator return (or captures/ep) as the cross-condition signal — the behavior-mining plot is the other unbiased evidence.</li>
+          <li>Two obstacles at opposite corners is a hand-picked geometry. Sensitivity to landmark layout is not measured.</li>
+        </ul>
+      </div>
+    </details>
+
+  </div>
+</section>
+
+<!-- ======================= EXP 1 ======================= -->
+<section id="exp1">
+  <div class="wrap">
+    <div class="section-kicker">§4 Experiment 1 — archived</div>
+    <h2>The original single-seed A/B on an RNN backbone.</h2>
+    <p class="section-sub">
+      Single seed. RNN backbone. Same opp-action head as Exp 3, but on a GRU trunk.
+      The finding — opp-awareness shifts the equilibrium toward the prey — is reproduced
+      with error bars in Exp 3, so this version is archived.
+    </p>
+  </div>
+
+  <div class="wrap-reading">
+
+    <p>
+      Baseline IQL vs OA-IQL, both RNN (<a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams.py#L44-L70" target="_blank" rel="noopener">ScannedRNN</a> + <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams.py#L72-L86" target="_blank" rel="noopener">RNNQNetwork</a> with <code>HIDDEN=64</code>), both 2 M env-steps on simple_tag_v3. With
+      a single seed the final numbers are within noise of each other — OA-IQL nudges both
+      teams up by ~2 return points at the end of training — but OA-IQL peaks <em>higher</em> than
+      baseline in predator return mid-training (~+115 vs ~+101). Opp-action classifier accuracy
+      plateaus around 0.53 (pred) and 0.58 (prey) — the same prey &gt; pred asymmetry that
+      Exp 3 measures more precisely. The noise of 1 seed is exactly why Exp 3 was re-run with 3.
+    </p>
+
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th style="text-align:right">Baseline IQL</th>
+          <th style="text-align:right">OA-IQL</th>
+          <th style="text-align:right">Δ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Final predator greedy return</td>
+          <td class="num">+31.56</td>
+          <td class="num">+33.44</td>
+          <td class="num">+1.88</td>
+        </tr>
+        <tr>
+          <td>Final prey greedy return</td>
+          <td class="num">−47.15</td>
+          <td class="num">−45.19</td>
+          <td class="num">+1.96</td>
+        </tr>
+        <tr>
+          <td>Predator peak (training)</td>
+          <td class="num">~+101</td>
+          <td class="num">~+115</td>
+          <td class="num">+14</td>
+        </tr>
+        <tr>
+          <td>Final opp-action accuracy</td>
+          <td class="num">—</td>
+          <td class="num">0.53 / 0.58</td>
+          <td class="num">(pred / prey)</td>
+        </tr>
+        <tr>
+          <td>Wall-clock per run (CPU)</td>
+          <td class="num">~157 s</td>
+          <td class="num">~162 s</td>
+          <td class="num">+3 %</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="code-refs">
+      <h4>Exp 1 code refs</h4>
+      <ul>
+        <li><span class="label">RNN Q-net</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams.py#L72-L86" target="_blank" rel="noopener">iql_teams.py:72–86</a></li>
+        <li><span class="label">GRU wrapper</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams.py#L44-L70" target="_blank" rel="noopener">iql_teams.py:44–70 (ScannedRNN)</a></li>
+        <li><span class="label">RNN + opp head</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa.py#L73-L95" target="_blank" rel="noopener">iql_teams_oa.py:73–95</a></li>
+        <li><span class="label">Comparison plot</span> <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/compare_plots.py" target="_blank" rel="noopener">compare_plots.py</a></li>
+      </ul>
+    </div>
+
+    <div class="two-col">
+      <figure>
+        <img src="../plots/compare_test_returns.png" alt="Exp 1 training curves, baseline vs OA-IQL">
+        <figcaption><strong>Test-return curves.</strong> Baseline vs OA-IQL, single seed.</figcaption>
+      </figure>
+      <figure>
+        <img src="../plots/compare_opp_modeling.png" alt="Exp 1 opp-head accuracy">
+        <figcaption><strong>Opp-head accuracy & CE.</strong> Both teams saturate near 0.57.</figcaption>
+      </figure>
+    </div>
+
+    <h4>Rollouts (single seed)</h4>
+    <div class="gif-gallery" style="grid-template-columns: 1fr 1fr; max-width: 620px;">
+      <div class="gif-card">
+        <img src="../plots/rollout.gif" alt="Exp 1 baseline rollout">
+        <div class="label"><span class="title">IQL baseline</span>60-step greedy rollout. Predators close in; prey darts between corners.</div>
+      </div>
+      <div class="gif-card">
+        <img src="../plots/rollout_oa.gif" alt="Exp 1 OA-IQL rollout">
+        <div class="label"><span class="title">OA-IQL</span>60-step greedy rollout. Similar overall play; the quantitative effect shows up in the return numbers above.</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="label">Status</span>
+      <p>
+        Experiment 3 reproduces the equilibrium-shift conclusion with (a) three seeds
+        and error bars, (b) an MLP backbone (the environment is fully observable, so
+        the RNN provides no information benefit), (c) a cross-play tournament rather
+        than marginal learning curves, and (d) an additional planning variant. The
+        Experiment 3 results supersede those of Experiment 1; Experiment 1 is retained
+        for reproducibility of the original A/B.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ======================= TECH NOTES ======================= -->
+<section id="tech">
+  <div class="wrap-reading">
+    <div class="section-kicker">§5 Engineering notes</div>
+    <h2>Three implementation notes worth recording.</h2>
+
+    <h3>1. Two-team split vs stock JaxMARL</h3>
+    <p>
+      Stock JaxMARL's parameter-sharing trick — <code>vmap(net, in_axes=(None, 0, 0, 0))</code>
+      — causes predator and prey gradients to land on the same weights in an adversarial
+      task, which cancels. The fix is a two-entry dict of <code>TrainState</code>s and a
+      <code>split_teams(env)</code> helper (<a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L76-L80" target="_blank" rel="noopener">iql_teams_mlp.py:76–80</a>), with predators still sharing <em>within-team</em>
+      for sample efficiency. Per-team <code>TrainState</code> init: <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L85-L250" target="_blank" rel="noopener">:85–250</a>. This is the single most important ~10 lines of code in the repo.
+    </p>
+
+    <h3>2. <code>wrapped_step</code>, not <code>env.step_env</code>, in the planner</h3>
+    <p>
+      The planner rolls the simulator forward for H steps per candidate root action. It
+      must go through <code>CTRolloutManager.wrapped_step(rng, state, actions)</code> — not
+      <code>env.step_env(...)</code> — because <code>wrapped_step</code> preserves the observation
+      padding and the agent one-hot that the training pipeline applied. A day lost here
+      silently returned NaN on the first tournament run. The call sits at
+      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L142-L144" target="_blank" rel="noopener">planning_eval.py:142–144</a>.
+    </p>
+
+    <h3>3. Pass <code>LogEnvState</code> directly to <code>wrapped_step</code></h3>
+    <p>
+      <code>CTRolloutManager.batch_reset</code> returns a <code>LogEnvState</code> (the outer
+      wrapper state). Pass that state straight through to the per-step call — not
+      <code>env_state.env_state</code>. <code>MPELogWrapper.step</code> already unwraps internally;
+      passing the inner state produces a pytree-shape mismatch and silent NaN returns.
+      The comment marking this is at <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/tournament.py#L80" target="_blank" rel="noopener">tournament.py:80</a>
+      (inside the scan at <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/tournament.py#L75-L91" target="_blank" rel="noopener">:75–91</a>).
+    </p>
+
+    <div class="code-refs">
+      <h4>Full code-reference map</h4>
+      <ul>
+        <li><span class="label">MLP Q-net</span>                    <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L40-L55" target="_blank" rel="noopener">iql_teams_mlp.py:40–55</a></li>
+        <li><span class="label">Two-head MLP (OA)</span>            <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L45-L71" target="_blank" rel="noopener">iql_teams_oa_mlp.py:45–71</a></li>
+        <li><span class="label">Team split</span>                   <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_mlp.py#L76-L80" target="_blank" rel="noopener">iql_teams_mlp.py:76–80</a></li>
+        <li><span class="label">OA loss (Q + CE)</span>             <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/iql_teams_oa_mlp.py#L279-L321" target="_blank" rel="noopener">iql_teams_oa_mlp.py:279–321</a></li>
+        <li><span class="label">Planner factory</span>              <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L86-L175" target="_blank" rel="noopener">planning_eval.py:86–175</a></li>
+        <li><span class="label">Root-action inject (1 line)</span>  <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L119" target="_blank" rel="noopener">planning_eval.py:119</a></li>
+        <li><span class="label">Opp-action sampling</span>          <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/planning_eval.py#L135-L142" target="_blank" rel="noopener">planning_eval.py:135–142</a></li>
+        <li><span class="label">Tournament scan</span>              <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/tournament.py#L57-L91" target="_blank" rel="noopener">tournament.py:57–91</a></li>
+        <li><span class="label">Static env subclass</span>          <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/simple_tag_static.py" target="_blank" rel="noopener">simple_tag_static.py</a></li>
+        <li><span class="label">Cross-product bonus</span>          <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/simple_tag_static.py#L83-L97" target="_blank" rel="noopener">simple_tag_static.py:83–97</a></li>
+        <li><span class="label">Behavior mining</span>              <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/exp2_behavior_mining.py" target="_blank" rel="noopener">exp2_behavior_mining.py</a></li>
+        <li><span class="label">Signed angular step</span>          <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/exp2_behavior_mining.py#L119-L136" target="_blank" rel="noopener">exp2_behavior_mining.py:119–136</a></li>
+        <li><span class="label">Exp 3 plotting</span>               <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/blob/main/src/plot_exp3.py" target="_blank" rel="noopener">plot_exp3.py</a></li>
+        <li><span class="label">Configs</span>                      <a class="codelink" href="https://github.com/rlogger/marl-opp-aware/tree/main/configs/alg" target="_blank" rel="noopener">configs/alg/*.yaml</a></li>
+      </ul>
+    </div>
+
+    <h3>Hyperparameters (all three experiments use these unless noted)</h3>
+    <dl class="kv">
+      <dt>Total env-steps</dt><dd>2 000 000 per training run</dd>
+      <dt>Parallel envs / train</dt><dd>8</dd>
+      <dt>Episode length</dt><dd>25 steps (Exp 2) / 32 at eval (Exp 3 tournament)</dd>
+      <dt>Discount γ</dt><dd>0.9</dd>
+      <dt>ε schedule</dt><dd>1.0 → 0.05 linear over 10 % of training</dd>
+      <dt>Learning rate</dt><dd>0.005, linear decay</dd>
+      <dt>Target update</dt><dd>every 200 steps, hard copy (τ = 1)</dd>
+      <dt>Buffer size / batch</dt><dd>5000 / 32</dd>
+      <dt>Hidden size</dt><dd>64 (RNN, Exp 1 &amp; 2) / 128 (MLP, Exp 3)</dd>
+      <dt>Opp-aux coef</dt><dd>0.5</dd>
+      <dt>Planner K / H / γ</dt><dd>5 / 3 / 0.9</dd>
+      <dt>Seeds</dt><dd>3 (Exp 2 &amp; 3), 1 (Exp 1)</dd>
+    </dl>
+  </div>
+</section>
+
+<!-- ======================= DOCS ======================= -->
+<section id="docs">
+  <div class="wrap-reading">
+    <div class="section-kicker">§6 Deeper reading</div>
+    <h2>Documentation in the repository.</h2>
+    <p class="section-sub">
+      Everything on this page is condensed from the Markdown docs in <code>docs/</code>.
+      Each one is self-contained — pick whichever matches your use case.
+    </p>
+
+    <div class="docs-grid">
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/README.md" target="_blank" rel="noopener">
+        <span class="doc-title">README.md</span>
+        <p class="doc-sub">Overview of all three experiments with numerical results. Start here.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/01_guide.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/01_guide.md</span>
+        <p class="doc-sub">Technical walkthrough. Architecture, algorithm, line-by-line references. ~200 lines.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/02_demo.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/02_demo.md</span>
+        <p class="doc-sub">Talk scripts — 10-min Exp 3, 5-min Exp 2, 6-min archived Exp 1. Timing tables and anti-patterns.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/03_qa.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/03_qa.md</span>
+        <p class="doc-sub">33 anticipated audience questions with short + detailed answers. Use as a Q&amp;A drill deck.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/04_quiz.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/04_quiz.md</span>
+        <p class="doc-sub">Self-check quiz. Target &gt; 80 % pass before presenting.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/05_cheatsheet.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/05_cheatsheet.md</span>
+        <p class="doc-sub">Numbers, glossary, code-reference tables. The single-page card to keep open during a demo.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/06_codebase.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/06_codebase.md</span>
+        <p class="doc-sub">File-by-file code tour with line numbers, plus a question-to-figure presentation map.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/07_next_steps.md" target="_blank" rel="noopener">
+        <span class="doc-title">docs/07_next_steps.md</span>
+        <p class="doc-sub">Proposed next experiments motivated by FormulaZero (ICML 2020) and Inverse Preference Learning (NeurIPS 2023), with cost estimates and decision criteria.</p>
+      </a>
+      <a class="doc-card" href="https://github.com/rlogger/marl-opp-aware/blob/main/PRESENT.md" target="_blank" rel="noopener">
+        <span class="doc-title">PRESENT.md</span>
+        <p class="doc-sub">Pre-demo checklist, verbatim openers, flashcard numbers, emergency fallback commands.</p>
+      </a>
+      <a class="doc-card" href="pp_cotrain.pptx" target="_blank" rel="noopener">
+        <span class="doc-title">pp_cotrain.pptx ↓</span>
+        <p class="doc-sub">10-slide PowerPoint summary. Title · setup · three experiments · mechanism · takeaways · refs. ~610 KB.</p>
+      </a>
+    </div>
+
+    <h3>Reproducing the results</h3>
+
+    <pre><code># Environment
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -e JaxMARL/ "flax==0.10.2" hydra-core flashbax wandb matplotlib
+
+# Exp 3 — ~5 min training + ~50 s tournament (MLP, CPU)
+python src/iql_teams_mlp.py    alg=ql_teams_mlp_simple_tag    NUM_SEEDS=3   # ~2 min
+python src/iql_teams_oa_mlp.py alg=ql_teams_oa_mlp_simple_tag NUM_SEEDS=3   # ~2 min
+python src/tournament.py --seeds 3 --eps 100 --K 5 --H 3                    # ~50 s
+python src/plot_exp3.py
+
+# Exp 2 — ~24 min total (3 × ~8 min RNN trainings)
+python src/smoke_test_static.py
+python src/iql_teams.py alg=ql_teams_static_baseline NUM_SEEDS=3
+python src/iql_teams.py alg=ql_teams_static_ccw      NUM_SEEDS=3
+python src/iql_teams.py alg=ql_teams_static_cw       NUM_SEEDS=3
+python src/exp2_behavior_mining.py
+python src/compare_static_plots.py \
+  --static_baseline logs/MPE_simple_tag_v3/iql_teams_static_baseline_MPE_simple_tag_v3_seed0_metrics.npz \
+  --static_cw       logs/MPE_simple_tag_v3/iql_teams_static_cw_MPE_simple_tag_v3_seed0_metrics.npz \
+  --static_ccw      logs/MPE_simple_tag_v3/iql_teams_static_ccw_MPE_simple_tag_v3_seed0_metrics.npz
+
+# Exp 1 — archived, 1 seed each, ~3 min
+python src/iql_teams.py    alg=ql_teams_simple_tag    NUM_SEEDS=1
+python src/iql_teams_oa.py alg=ql_teams_oa_simple_tag NUM_SEEDS=1
+python src/compare_plots.py \
+  --baseline logs/MPE_simple_tag_v3/iql_teams_MPE_simple_tag_v3_seed0_metrics.npz \
+  --oa       logs/MPE_simple_tag_v3/iql_teams_oa_MPE_simple_tag_v3_seed0_metrics.npz</code></pre>
+
+  </div>
+</section>
+
+<!-- ======================= FOOTER ======================= -->
+<footer>
+  <div class="wrap">
+    <p>
+      <strong>pp_cotrain</strong> — two-team independent Q-learning on MPE
+      <code>simple_tag_v3</code>, with opponent modeling, test-time planning, and a
+      reward-shaping study. Built in JAX, runs on a laptop CPU.
+    </p>
+    <div class="ref-list">
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/README.md" target="_blank" rel="noopener">README</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/PRESENT.md" target="_blank" rel="noopener">PRESENT</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/01_guide.md" target="_blank" rel="noopener">01 guide</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/02_demo.md" target="_blank" rel="noopener">02 demo</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/03_qa.md" target="_blank" rel="noopener">03 Q&amp;A</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/04_quiz.md" target="_blank" rel="noopener">04 quiz</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/05_cheatsheet.md" target="_blank" rel="noopener">05 cheatsheet</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/06_codebase.md" target="_blank" rel="noopener">06 codebase</a>
+      <a href="https://github.com/rlogger/marl-opp-aware/blob/main/docs/07_next_steps.md" target="_blank" rel="noopener">07 next steps</a>
+    </div>
+    <p class="small dim">
+      simple_tag_v3 is a Multi-Agent Particle Environment from JaxMARL (Rutherford et al.), unmodified aside from the <code>SimpleTagStaticMPE</code> subclass used in Exp 2.
+    </p>
+  </div>
+</footer>
+
+<script>
+  // Highlight the nav item for the section you're reading
+  const sections = document.querySelectorAll('section[id], header[id]');
+  const navLinks = document.querySelectorAll('nav.top ul a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(a => {
+          if (a.getAttribute('href') === '#' + id) {
+            a.style.color = 'var(--fg)';
+            a.style.fontWeight = '600';
+          } else if (a.getAttribute('href') && a.getAttribute('href').startsWith('#')) {
+            a.style.color = '';
+            a.style.fontWeight = '';
+          }
+        });
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
