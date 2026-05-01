@@ -1,26 +1,27 @@
 """Verify multi-modality in the VAE latent space.
 
-Loads the VAE trained by `src/train_traj_vae.py` and re-runs the
-multi-modality analysis from `src/verify_multimodality.py` but on the
-posterior-mean latent vectors q(z|x).μ instead of hand / occupancy features.
+Loads the VAE trained by `src/train_traj_vae.py --agent <agent>` and re-runs
+the multi-modality analysis from `src/verify_multimodality.py` on the
+posterior-mean latent z = q(z|x).μ instead of hand / occupancy features.
 
 Inputs
     logs/MPE_simple_tag_v3/trajectory_dataset_{A,B}.npz
-    logs/MPE_simple_tag_v3/traj_vae.safetensors
-    logs/MPE_simple_tag_v3/traj_vae_stats.npz
+    logs/MPE_simple_tag_v3/traj_vae_<agent>.safetensors
+    logs/MPE_simple_tag_v3/traj_vae_<agent>_stats.npz
 
-Outputs (all under plots/)
-    vae_A_pca.png                PCA(z) scatter, coloured by ground-truth checkpoint
-    vae_A_sweep.png              k-sweep BIC / silhouette / ARI / NMI on z
-    vae_A_confusion_k3.png       GMM(k=3) clusters vs ground-truth (variant level)
-    vae_A_confusion_k9.png       GMM(k=9) clusters vs ground-truth (seed level)
-    vae_A_samples_truth.png      sample trajectories per ground-truth checkpoint
-    vae_A_samples_clusters.png   sample trajectories per VAE-discovered cluster
-    vae_A_latent_traversal.png   decode along the top-2 principal axes of z
-    vae_B_pca.png                PCA(z) scatter, coloured by discovered cluster
-    vae_B_sweep.png              k-sweep BIC / silhouette on z (no labels)
-    vae_B_samples_clusters.png   sample trajectories per VAE-discovered cluster
+Outputs (all under plots/, suffix = agent)
+    vae_<agent>_A_pca.png                PCA(z) scatter, coloured by ground-truth checkpoint
+    vae_<agent>_A_sweep.png              k-sweep BIC / silhouette / ARI / NMI on z
+    vae_<agent>_A_confusion_k3.png       GMM(k=3) clusters vs ground-truth
+    vae_<agent>_A_confusion_k9.png       GMM(k=9) clusters vs ground-truth
+    vae_<agent>_A_samples_truth.png      sample trajectories per ground-truth checkpoint
+    vae_<agent>_A_samples_clusters.png   sample trajectories per VAE-discovered cluster
+    vae_<agent>_A_latent_traversal.png   decode along the top-2 principal axes of z
+    vae_<agent>_B_pca.png                PCA(z) scatter, coloured by discovered cluster
+    vae_<agent>_B_sweep.png              k-sweep BIC / silhouette on z (no labels)
+    vae_<agent>_B_samples_clusters.png   sample trajectories per discovered cluster
 """
+import argparse
 import os
 import numpy as np
 
@@ -52,8 +53,8 @@ PLOTDIR = "plots"
 
 # --------------------------- model wrapper ---------------------------------- #
 
-def load_vae():
-    stats = np.load(os.path.join(LOGDIR, "traj_vae_stats.npz"))
+def load_vae(agent: str):
+    stats = np.load(os.path.join(LOGDIR, f"traj_vae_{agent}_stats.npz"))
     train_mean = stats["train_mean"].astype(np.float32)
     train_std  = stats["train_std"].astype(np.float32)
     T          = int(stats["T"])
@@ -62,7 +63,7 @@ def load_vae():
     out_dim    = T * 2
 
     model = TrajVAE(hidden=hidden, latent=latent_dim, out_dim=out_dim)
-    params = load_params(os.path.join(LOGDIR, "traj_vae.safetensors"))
+    params = load_params(os.path.join(LOGDIR, f"traj_vae_{agent}.safetensors"))
     return model, params, train_mean, train_std, T, latent_dim
 
 
@@ -88,16 +89,24 @@ def decode_latents(model, params, Z, train_mean, train_std, T):
 
 # --------------------------- analyses --------------------------------------- #
 
-def analyse(tag: str, model, params, train_mean, train_std, latent_dim):
+def _agent_traj(d, agent):
+    """Pull (N, T+1, 2) trajectory for the named agent from an npz."""
+    if agent == "prey":
+        return d["positions"]
+    i = int(agent.split("_", 1)[1])
+    return d["pred_positions"][:, :, i, :]
+
+
+def analyse(tag: str, agent: str, model, params, train_mean, train_std, latent_dim):
     npz = os.path.join(LOGDIR, f"trajectory_dataset_{tag}.npz")
-    print(f"\n=== {tag}: {npz} ===")
+    print(f"\n=== {agent} | {tag}: {npz} ===")
     d = np.load(npz, allow_pickle=True)
-    positions   = d["positions"]
+    positions   = _agent_traj(d, agent)
     labels_true = d["labels"]
     checkpoints = list(d["checkpoints"])
     has_labels  = bool((labels_true >= 0).any())
 
-    x_raw, _ = load_and_prepare(npz)
+    x_raw, _ = load_and_prepare(npz, agent=agent)
     Z_mu = encode_dataset(model, params, x_raw, train_mean, train_std)
     print(f"  N={positions.shape[0]}, latent shape={Z_mu.shape}, "
           f"per-dim std={Z_mu.std(axis=0).round(3).tolist()}")
@@ -107,8 +116,8 @@ def analyse(tag: str, model, params, train_mean, train_std, latent_dim):
     color_y = labels_true if has_labels else np.zeros(Z.shape[0], dtype=np.int32)
     plot_pca(
         Z, color_y,
-        f"{tag} | VAE latent z (μ), PCA",
-        f"{PLOTDIR}/vae_{tag}_pca.png",
+        f"{agent} | {tag} | VAE latent z (μ), PCA",
+        f"{PLOTDIR}/vae_{agent}_{tag}_pca.png",
         checkpoints if has_labels else ["all"],
     )
 
@@ -118,8 +127,8 @@ def analyse(tag: str, model, params, train_mean, train_std, latent_dim):
     )
     plot_sweep(
         sweep, has_labels,
-        f"{tag} | VAE latent clustering (k sweep)",
-        f"{PLOTDIR}/vae_{tag}_sweep.png",
+        f"{agent} | {tag} | VAE latent clustering (k sweep)",
+        f"{PLOTDIR}/vae_{agent}_{tag}_sweep.png",
     )
     print(f"  k    BIC          silh    ARI     NMI")
     for i, k in enumerate(sweep["k"]):
@@ -139,14 +148,14 @@ def analyse(tag: str, model, params, train_mean, train_std, latent_dim):
             y_pred = gm.predict(Z)
             plot_confusion(
                 labels_true, y_pred, checkpoints,
-                f"{PLOTDIR}/vae_{tag}_confusion_k{K}.png",
-                f"{tag} | VAE-latent GMM(k={K}) vs ground truth",
+                f"{PLOTDIR}/vae_{agent}_{tag}_confusion_k{K}.png",
+                f"{agent} | {tag} | VAE-latent GMM(k={K}) vs ground truth",
             )
 
         plot_sample_trajectories(
             positions, labels_true, checkpoints,
-            f"{PLOTDIR}/vae_{tag}_samples_truth.png",
-            f"{tag} | sample trajectories per checkpoint (ground truth)",
+            f"{PLOTDIR}/vae_{agent}_{tag}_samples_truth.png",
+            f"{agent} | {tag} | sample trajectories per checkpoint (ground truth)",
             k_per_group=8,
         )
         # Also show clusters discovered by GMM at K_TRUE.
@@ -157,8 +166,8 @@ def analyse(tag: str, model, params, train_mean, train_std, latent_dim):
         y_pred = gm.predict(Z)
         plot_sample_trajectories(
             positions, y_pred, [f"cluster {c}" for c in range(K_TRUE)],
-            f"{PLOTDIR}/vae_{tag}_samples_clusters.png",
-            f"{tag} | sample trajectories per VAE-latent cluster (k={K_TRUE})",
+            f"{PLOTDIR}/vae_{agent}_{tag}_samples_clusters.png",
+            f"{agent} | {tag} | sample trajectories per VAE-latent cluster (k={K_TRUE})",
             k_per_group=8,
         )
     else:
@@ -172,20 +181,19 @@ def analyse(tag: str, model, params, train_mean, train_std, latent_dim):
         y_pred = gm.predict(Z)
         plot_sample_trajectories(
             positions, y_pred, [f"cluster {c}" for c in range(k_best)],
-            f"{PLOTDIR}/vae_{tag}_samples_clusters.png",
-            f"{tag} | sample trajectories per VAE-latent cluster (k={k_best})",
+            f"{PLOTDIR}/vae_{agent}_{tag}_samples_clusters.png",
+            f"{agent} | {tag} | sample trajectories per VAE-latent cluster (k={k_best})",
             k_per_group=8,
         )
 
 
-def latent_traversal(model, params, train_mean, train_std, T, latent_dim):
+def latent_traversal(agent, model, params, train_mean, train_std, T, latent_dim):
     """Decode trajectories along the top-2 principal axes of the encoded
-    Dataset A, plus a uniform sweep of one latent dim at a time. This shows
-    *what the latent space encodes*: each panel is a decoded trajectory.
+    Dataset A. Each panel is a decoded trajectory. Shows what the latent encodes.
     """
-    print("\n=== latent traversal ===")
+    print(f"\n=== {agent} | latent traversal ===")
     npz = os.path.join(LOGDIR, "trajectory_dataset_A.npz")
-    x_raw, _ = load_and_prepare(npz)
+    x_raw, _ = load_and_prepare(npz, agent=agent)
     Z_mu = encode_dataset(model, params, x_raw, train_mean, train_std)
 
     pca = PCA(n_components=2, random_state=0).fit(Z_mu)
@@ -224,20 +232,26 @@ def latent_traversal(model, params, train_mean, train_std, T, latent_dim):
                 ax.set_xlabel(f"PC1 = {a[j]:+.1f}σ", fontsize=8)
             if j == 0:
                 ax.set_ylabel(f"PC2 = {b[i]:+.1f}σ", fontsize=8)
-    fig.suptitle("Decoded trajectories across the top-2 principal axes of z")
+    fig.suptitle(f"{agent} | decoded trajectories across the top-2 principal axes of z")
     fig.tight_layout()
-    out = f"{PLOTDIR}/vae_A_latent_traversal.png"
+    out = f"{PLOTDIR}/vae_{agent}_A_latent_traversal.png"
     fig.savefig(out, dpi=140); plt.close(fig)
     print(f"  wrote {out}")
 
 
 def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--agent", default="prey",
+                   choices=["prey", "pred_0", "pred_1", "pred_2"])
+    args = p.parse_args()
+    agent = args.agent
+
     os.makedirs(PLOTDIR, exist_ok=True)
-    model, params, mean_, std_, T, latent_dim = load_vae()
-    print(f"loaded VAE: T={T} latent={latent_dim}")
-    analyse("A", model, params, mean_, std_, latent_dim)
-    analyse("B", model, params, mean_, std_, latent_dim)
-    latent_traversal(model, params, mean_, std_, T, latent_dim)
+    model, params, mean_, std_, T, latent_dim = load_vae(agent)
+    print(f"loaded VAE for {agent}: T={T} latent={latent_dim}")
+    analyse("A", agent, model, params, mean_, std_, latent_dim)
+    analyse("B", agent, model, params, mean_, std_, latent_dim)
+    latent_traversal(agent, model, params, mean_, std_, T, latent_dim)
 
 
 if __name__ == "__main__":
