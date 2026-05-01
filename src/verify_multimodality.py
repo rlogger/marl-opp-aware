@@ -58,55 +58,93 @@ ANNULUS   = (0.25, 0.6)
 def hand_features(positions: np.ndarray) -> np.ndarray:
     """positions: (N, T+1, 2). Returns (N, F).
 
+    Init-conditioned: features that depend on the absolute position get the
+    initial prey position subtracted, so initial-condition variance does not
+    swamp the policy signal.
+
     Features (in order):
-        final_x, final_y, mean_speed, time_in_annulus, x_range, y_range,
-        per-obstacle: signed_angular_sum, mean_sign_cross_in_annulus,
-                      angular_sum_in_annulus_only.
+        relative_final_x, relative_final_y,
+        mean_speed,
+        time_in_annulus_any_obstacle,
+        x_range, y_range,
+        pooled_mean_sign_cross_in_annulus  (the directional signature),
+        pooled_angular_displacement_in_annulus,
+        per_obstacle: time_in_band, sign_in_band, ang_sum_in_band   (3 x L = 6).
     """
     N = positions.shape[0]
     prev = positions[:, :-1]                       # (N, T, 2)
     nxt  = positions[:, 1:]                        # (N, T, 2)
 
-    speed = np.linalg.norm(nxt - prev, axis=-1)    # (N, T)
+    speed = np.linalg.norm(nxt - prev, axis=-1)
     mean_speed = speed.mean(axis=1)
 
     L = OBSTACLES.shape[0]
-    feats_per_obs = []                              # one (N, 3) block per obstacle
 
-    in_band_any = np.zeros((N, prev.shape[1]), dtype=bool)
+    in_band_any  = np.zeros((N, prev.shape[1]), dtype=bool)
+    pooled_sign  = np.zeros(N, dtype=np.float32)
+    pooled_ang   = np.zeros(N, dtype=np.float32)
+    pooled_count = np.zeros(N, dtype=np.float32)
+    per_obs = []
+
     for j in range(L):
         vp = prev - OBSTACLES[j][None, None, :]
         vn = nxt  - OBSTACLES[j][None, None, :]
-        d_new = np.linalg.norm(vn, axis=-1)              # (N, T)
+        d_new = np.linalg.norm(vn, axis=-1)
         in_band_j = (d_new >= ANNULUS[0]) & (d_new <= ANNULUS[1])
         in_band_any |= in_band_j
 
         cross = vp[..., 0] * vn[..., 1] - vp[..., 1] * vn[..., 0]
         dot   = vp[..., 0] * vn[..., 0] + vp[..., 1] * vn[..., 1]
-        ang   = np.arctan2(cross, dot)                    # (N, T)
+        ang   = np.arctan2(cross, dot)
 
-        ang_sum         = ang.sum(axis=1)                  # full sum
-        ang_sum_in_band = (ang * in_band_j).sum(axis=1)    # in-annulus only
-        # Mean sign(cross) in the annulus (zero if no in-annulus steps).
-        n_in   = in_band_j.sum(axis=1).clip(min=1)
-        sign_in_band = (np.sign(cross) * in_band_j).sum(axis=1) / n_in
+        n_in_j = in_band_j.sum(axis=1).clip(min=1)
+        sign_in_band_j   = (np.sign(cross) * in_band_j).sum(axis=1) / n_in_j
+        ang_sum_in_band  = (ang * in_band_j).sum(axis=1)
+        time_in_band_j   = in_band_j.mean(axis=1)
+        per_obs.append(np.stack([time_in_band_j, sign_in_band_j, ang_sum_in_band], axis=1))
 
-        feats_per_obs.append(
-            np.stack([ang_sum, ang_sum_in_band, sign_in_band], axis=1)
-        )                                                  # (N, 3)
+        # pool across obstacles weighted by in-band steps
+        pooled_sign  += (np.sign(cross) * in_band_j).sum(axis=1)
+        pooled_ang   += ang_sum_in_band
+        pooled_count += in_band_j.sum(axis=1)
+
+    pooled_count = pooled_count.clip(min=1)
+    pooled_sign /= pooled_count
 
     time_in_annulus = in_band_any.mean(axis=1)
-    final           = positions[:, -1]
-    x_range         = positions[:, :, 0].ptp(axis=1)
-    y_range         = positions[:, :, 1].ptp(axis=1)
+    init   = positions[:, 0]
+    rel_final = positions[:, -1] - init             # init-conditioned
+    x_range = positions[:, :, 0].ptp(axis=1)
+    y_range = positions[:, :, 1].ptp(axis=1)
 
     return np.concatenate(
-        [final,
+        [rel_final,
          mean_speed[:, None], time_in_annulus[:, None],
          x_range[:, None], y_range[:, None],
-         *feats_per_obs],
+         pooled_sign[:, None], pooled_ang[:, None],
+         *per_obs],
         axis=1,
     ).astype(np.float32)
+
+
+def occupancy_features_relative(positions: np.ndarray, grid_h: int = GRID_H) -> np.ndarray:
+    """Init-conditioned occupancy: histogram of (position - initial_position).
+
+    Captures the *shape* of the trajectory, not where it started.
+    """
+    N = positions.shape[0]
+    rel = positions - positions[:, :1]              # (N, T+1, 2)
+    edges = np.linspace(-2.0, 2.0, grid_h + 1)
+    feats = np.zeros((N, grid_h, grid_h), dtype=np.float32)
+    for i in range(N):
+        H, _, _ = np.histogram2d(
+            rel[i, :, 0], rel[i, :, 1], bins=[edges, edges]
+        )
+        s = H.sum()
+        if s > 0:
+            H /= s
+        feats[i] = H
+    return feats.reshape(N, -1)
 
 
 def occupancy_features(positions: np.ndarray, grid_h: int = GRID_H) -> np.ndarray:
@@ -291,11 +329,13 @@ def analyse_dataset(npz_path: str, tag: str):
 
     # Featurise. The 256-dim occupancy histogram is too high-dim for full-covariance
     # GMM on N=900 samples, so we PCA-reduce to ~30-d first.
+    # Use init-conditioned occupancy: histogram of (pos - reset_pos).
     H = standardise(hand_features(positions))
-    O_full = occupancy_features(positions)
+    O_full = occupancy_features_relative(positions)
     O_pca = PCA(n_components=30, random_state=0).fit_transform(O_full)
     O = standardise(O_pca)
-    print(f"  hand-features  shape={H.shape}    occupancy-PCA-30 shape={O.shape}")
+    print(f"  hand-features (init-cond)  shape={H.shape}    "
+          f"occupancy-relative-PCA-30 shape={O.shape}")
 
     # PCA scatter
     label_lookup = checkpoints if has_labels else None
