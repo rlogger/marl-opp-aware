@@ -33,6 +33,7 @@ from jaxmarl import make
 from jaxmarl.wrappers.baselines import MPELogWrapper, CTRolloutManager
 
 from simple_tag_static import SimpleTagStaticMPE
+from simple_tag_resources import SimpleTagResourcesMPE
 
 
 # ---------- Networks ----------
@@ -432,7 +433,18 @@ def make_train(config, env):
 
 
 def env_from_config(config):
-    if config.get("USE_STATIC_OBSTACLES", False):
+    if config.get("USE_RESOURCES", False):
+        env = SimpleTagResourcesMPE(
+            num_resources=int(config.get("NUM_RESOURCES", 4)),
+            placement=config.get("RESOURCE_PLACEMENT", "random"),
+            collect_radius=float(config.get("COLLECT_RADIUS", 0.15)),
+            collect_reward=float(config.get("COLLECT_REWARD", 5.0)),
+            circle_radius=float(config.get("CIRCLE_RADIUS", 0.6)),
+            corner_offset=float(config.get("CORNER_OFFSET", 0.8)),
+            obstacle_positions=config.get("OBSTACLE_POSITIONS", None),
+            **config["ENV_KWARGS"],
+        )
+    elif config.get("USE_STATIC_OBSTACLES", False):
         env = SimpleTagStaticMPE(
             obstacle_positions=config.get("OBSTACLE_POSITIONS", None),
             shape_coef=float(config.get("SHAPE_COEF", 0.0)),
