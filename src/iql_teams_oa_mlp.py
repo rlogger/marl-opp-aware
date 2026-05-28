@@ -451,13 +451,11 @@ def make_train(config, env):
             metrics = {}
             for t in team_names:
                 idxs = jnp.array([env.agents.index(a) for a in teams[t]])
-                m = jax.tree.map(
-                    lambda x: jnp.nanmean(
-                        jnp.where(infos["returned_episode"][..., idxs], x[..., idxs], jnp.nan)
-                    ),
-                    infos,
+                mask = infos["returned_episode"][..., idxs]
+                rets = infos["returned_episode_returns"][..., idxs]
+                metrics[f"{t}/returned_episode_returns"] = jnp.nanmean(
+                    jnp.where(mask, rets, jnp.nan)
                 )
-                metrics.update({f"{t}/{k}": v for k, v in m.items()})
             return metrics
 
         rng, _rng = jax.random.split(rng)
