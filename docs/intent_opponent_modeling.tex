@@ -297,6 +297,40 @@ belief-conditioned opponent model is.
 
 
 %% ==================================================================
+\section{Toward a learned dynamics model}
+
+The Part 2 planner uses the true simulator as its dynamics model. A deployed
+agent may not have one, so we ask whether the same plan works through a
+\emph{learned} model. We learn the agents' physics transition
+$f_\theta:(x^{1:4}, v^{1:4}, a^{1:4}) \mapsto (x'^{1:4}, v'^{1:4})$ from
+$10^5$ transitions by \emph{rollout training} (unrolling $f_\theta$ four steps
+and matching the true four-step trajectory, which keeps compounding error small),
+and run the planner of Eq.~\eqref{eq:plan} through $f_\theta$ in place of the
+simulator; observations and the capture/leaf terms remain geometric readouts of
+the predicted state. The model is accurate---position RMSE $0.004$ at one step
+and $0.072$ at five steps, on an arena $3.2$ wide.
+
+Yet the learned-model planner reaches only $2.53 \pm 0.34$ captures/episode---it
+recovers $59\%$ of the true-simulator planner ($4.31$) and roughly matches the
+reactive belief policy. The dynamics are accurate \emph{on-policy}, but the
+planner scores all $125$ joint actions, many off the model's training
+distribution, and the arg-max \emph{exploits} the model's optimistic errors over
+the five-step closed loop---the canonical model-exploitation failure of
+model-based RL, sharpened here because discrete policies amplify small state
+errors into different actions. We also implemented the standard remedy---a short
+two-step lookahead with a learned belief-conditioned value
+$V_\psi(s, \bel)$ at the leaf---but the value was too coarse
+($\mathrm{MSE}\approx 0.6$ on returns spanning $0$--$4$) and made matters worse
+($0.76$). Closing the gap is a model-fidelity and model-exploitation problem:
+ensembles with disagreement penalties, on-policy/DAgger model refinement against
+the planner's own action queries, and a sharper value are the levers. We report
+this as an honest intermediate result: planning through a learned model is
+\emph{feasible} here---the planner runs with no simulator at test time and stays
+on par with the reactive policy---but matching the true-simulator planner needs a
+model the planner cannot exploit.
+
+
+%% ==================================================================
 \section{Discussion}
 
 \paragraph{Why this design, and not the obvious one.}
@@ -322,10 +356,11 @@ The reactive belief predator gains $+5\%$ over the intent-blind hedger; putting
 the same belief inside a one-step-ahead plan (Eq.~\ref{eq:plan}) gains $+53\%$ and
 overtakes even the oracle reactive policy. The belief is the same; what changes is
 that the planner uses it to \emph{simulate the opponent forward} and intercept,
-rather than to colour a reaction. This is the proposal's Part~2 with the real
-simulator as the dynamics model; the remaining step---a learned, MuZero-style
-dynamics model so the planner needs no simulator at test time---would extend the
-same construction without changing its logic.
+rather than to colour a reaction. Swapping the real simulator for a learned
+dynamics model keeps the same logic and runs without a simulator at test time,
+but only partly recovers the planner's gain because the planner exploits model
+error on out-of-distribution actions---a model-fidelity problem we report
+honestly rather than tune away.
 
 \paragraph{Limitations.}
 The leaf term (Eq.~\ref{eq:plan}) is a hand-specified shaping toward the imagined
