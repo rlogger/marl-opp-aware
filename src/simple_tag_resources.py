@@ -70,9 +70,22 @@ class SimpleTagResourcesMPE(SimpleTagMPE):
         circle_radius: float = 0.6,
         corner_offset: float = 0.8,
         obstacle_positions: Optional[List[List[float]]] = None,
+        pred_max_speed: Optional[float] = None,
+        pred_accel: Optional[float] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+
+        # Optionally weaken the predators so the prey is not fully dominated and
+        # can execute a resource-collection route. Without this the dominated
+        # prey just evades, and its placement strategy is only a weak aggregate
+        # perturbation rather than a per-trajectory-recoverable behaviour.
+        if pred_max_speed is not None:
+            self.max_speed = self.max_speed.at[:self.num_adversaries].set(
+                float(pred_max_speed))
+        if pred_accel is not None:
+            self.accel = self.accel.at[:self.num_adversaries].set(
+                float(pred_accel))
 
         assert placement in ("circle", "corners", "random"), placement
         self.num_resources = num_resources

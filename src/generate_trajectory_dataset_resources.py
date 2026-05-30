@@ -157,12 +157,20 @@ def _params_path(algorithm, placement, team, seed_idx):
     return f"{base}_seed0_vmap{seed_idx}.safetensors"
 
 
+# Eval-env knobs. Set these (e.g. from an analysis script) so the rollout env
+# matches how the checkpoints were trained — in particular weakened predators.
+PRED_MAX_SPEED = None
+PRED_ACCEL = None
+COLLECT_REWARD = 5.0
+
+
 def _make_env(placement):
     return SimpleTagResourcesMPE(
         num_resources=4, placement=placement,
-        collect_radius=0.15, collect_reward=5.0,
+        collect_radius=0.15, collect_reward=COLLECT_REWARD,
         circle_radius=0.6, corner_offset=0.8,
         obstacle_positions=OBSTACLES,
+        pred_max_speed=PRED_MAX_SPEED, pred_accel=PRED_ACCEL,
     )
 
 

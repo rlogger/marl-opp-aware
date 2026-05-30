@@ -381,6 +381,8 @@ def env_from_config(config):
             circle_radius=float(config.get("CIRCLE_RADIUS", 0.6)),
             corner_offset=float(config.get("CORNER_OFFSET", 0.8)),
             obstacle_positions=config.get("OBSTACLE_POSITIONS", None),
+            pred_max_speed=config.get("PRED_MAX_SPEED", None),
+            pred_accel=config.get("PRED_ACCEL", None),
             **config["ENV_KWARGS"],
         )
     elif config.get("USE_STATIC_OBSTACLES", False):
