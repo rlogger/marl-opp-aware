@@ -372,7 +372,21 @@ def make_train(config, env):
 
 
 def env_from_config(config):
-    if config.get("USE_RESOURCES", False):
+    if config.get("USE_INTENT", False):
+        from simple_tag_intent import SimpleTagIntentMPE
+        env = SimpleTagIntentMPE(
+            num_intents=int(config.get("NUM_INTENTS", 4)),
+            corner_offset=float(config.get("CORNER_OFFSET", 0.8)),
+            intent_radius=float(config.get("INTENT_RADIUS", 0.45)),
+            intent_reward=float(config.get("INTENT_REWARD", 1.0)),
+            reveal_to_pred=bool(config.get("REVEAL_INTENT_TO_PRED", False)),
+            intent_belief_noise=bool(config.get("INTENT_BELIEF_NOISE", False)),
+            obstacle_positions=config.get("OBSTACLE_POSITIONS", None),
+            pred_max_speed=config.get("PRED_MAX_SPEED", None),
+            pred_accel=config.get("PRED_ACCEL", None),
+            **config["ENV_KWARGS"],
+        )
+    elif config.get("USE_RESOURCES", False):
         env = SimpleTagResourcesMPE(
             num_resources=int(config.get("NUM_RESOURCES", 4)),
             placement=config.get("RESOURCE_PLACEMENT", "random"),

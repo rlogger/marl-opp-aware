@@ -1,0 +1,259 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{microtype}
+\usepackage[colorlinks,citecolor=blue,urlcolor=blue,linkcolor=blue]{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0em}
+
+\newcommand{\expect}{\mathbb{E}}
+\newcommand{\intent}{g}
+\newcommand{\bel}{\mathbf{b}}
+\newcommand{\cps}{\mathrm{cap}}
+
+\title{Inferring and Exploiting a Hidden Opponent Intent:\\
+An Uncertainty-Aware Opponent-Modeling Study in\\
+Predator--Prey}
+\author{Rajdeep Singh \\ REL Lab, University of Southern California}
+\date{May 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Opponent modeling is only worth its cost when (i) the opponent has a genuinely
+\emph{hidden} strategy, (ii) that strategy is \emph{inferable} from observed
+behavior, (iii) knowing it is \emph{exploitable}, and (iv) the model is
+\emph{uncertainty-aware}, so a wrong early guess does not hurt. We construct a
+predator--prey task that isolates all four. In a single fixed arena the prey is
+assigned, each episode, a hidden intent $\intent$---one of four corners it is
+rewarded for haunting---that the predators cannot observe. We find: the intent
+strongly shapes the prey's motion (it occupies its corner $\sim$50\% of steps);
+a behavioral encoder recovers $\intent$ from the prey's first $k$ steps, with
+accuracy rising from $0.37$ ($k{=}3$) to $0.97$ ($k{=}25$) as its posterior
+entropy collapses from $1.35$ to $0.03$ nats; and knowing the intent is worth
+\textbf{+51\%} captures (an oracle predator that observes $\intent$ catches the
+prey $4.05$ times per episode vs.\ $2.68$ for a strong intent-blind hedger). A
+predator trained on \emph{perfect} intent is brittle---fed a random intent it
+collapses to $1.42$---so we train an \emph{uncertainty-aware} predator on soft
+intent beliefs of random sharpness and feed it the encoder's online-sharpening
+posterior at test. It \textbf{beats the intent-blind baseline (2.82 vs.\ 2.68)}
+and recovers \textbf{53\%} of the oracle's advantage, by hedging while uncertain
+and committing once confident. This is, to our knowledge, the cleanest
+demonstration on this platform that inferring a hidden opponent strategy---and
+representing the inference's uncertainty---improves the best response.
+\end{abstract}
+
+
+%% ==================================================================
+\section{Motivation: what makes opponent modeling worth it}
+
+A planning agent that models its opponent pays a cost: it must infer something
+about the opponent and condition on it. That cost is justified only under four
+conditions, which prior platforms (including our own earlier experiments) tend to
+assume rather than establish:
+
+\begin{enumerate}[nosep,leftmargin=1.6em]
+\item \textbf{Hidden strategy.} The opponent must vary its behavior along an axis
+that is \emph{not} directly readable from a single observation. If the
+``strategy'' is induced by a visible change in the environment, an agent can
+react to the environment and skip the opponent model entirely.
+\item \textbf{Inferable.} The hidden strategy must leave a signature in observed
+behavior, recoverable within a useful horizon.
+\item \textbf{Exploitable.} Knowing the strategy must materially improve the best
+response; otherwise inference is academic.
+\item \textbf{Uncertainty-aware.} Inference is uncertain early and sharpens with
+observation. A model that commits to a hard early guess can be \emph{worse} than
+no model. The agent must represent and act on the belief, not a point estimate.
+\end{enumerate}
+
+We design a task in which a single hidden variable---the prey's intent---supplies
+(1)--(3) by construction, and we build the (4) uncertainty-aware predator
+explicitly. Crucially the environment is \emph{identical} across strategies: the
+strategy lives in the opponent, not the map.
+
+
+%% ==================================================================
+\section{Task: a hidden-intent predator--prey game}
+
+\paragraph{Markov game.}
+Three predators $P=\{1,2,3\}$ pursue one prey $q$ in a fixed $2$D arena with two
+fixed obstacles (JaxMARL MPE dynamics, $5$ discrete actions, $H=25$ step
+episodes). At each reset the prey is assigned an intent
+$\intent \sim \mathrm{Uniform}\{0,1,2,3\}$ indexing one of four corners
+$c_\intent \in \{\pm 0.8\}^2$. Writing $c^t_i = \mathbf{1}[\lVert x^t_i - x^t_q\rVert
+< \rho_i+\rho_q]$ for predator $i$ contacting the prey, the team rewards are
+\begin{equation}
+  r^{\mathrm{pred},t} = \lambda_{\mathrm{tag}}\!\sum_{i\in P} c^t_i,
+  \qquad
+  r^{\mathrm{prey},t} = -\lambda_{\mathrm{tag}}\!\sum_{i\in P} c^t_i
+     \;+\; \lambda_{\mathrm{int}}\,\mathbf{1}\!\big[\lVert x^t_q - c_\intent\rVert < r_{\mathrm{int}}\big],
+\end{equation}
+with $\lambda_{\mathrm{tag}}=10$, $\lambda_{\mathrm{int}}=4$,
+$r_{\mathrm{int}}=0.35$. So the prey earns a per-step bonus for loitering at its
+assigned corner, in addition to evading. Predators are slowed
+($v_{\max}=0.75$, accel $2.0$ vs.\ the prey's $1.3/4.0$) so the prey can express
+its intent rather than being forced into pure flight. Captures per episode are
+$\cps = \lambda_{\mathrm{tag}}^{-1}\sum_t r^{\mathrm{pred},t}$.
+
+\paragraph{Who observes the intent.}
+The \textbf{prey always} observes its own intent (one-hot appended to its
+observation). The predators observe it according to the condition:
+\begin{description}[style=nextline,font=\normalfont\bfseries,leftmargin=1.2em]
+\item[unaware] no intent input: the predator must hedge over the four corners.
+\item[oracle] the true one-hot $e_\intent$: an upper bound on what intent buys.
+\item[belief] a soft belief $\bel = \alpha\, e_\intent + (1-\alpha)\,\tfrac{1}{4}\mathbf{1}$
+with sharpness $\alpha \sim \mathrm{Uniform}(0,1)$ drawn per episode during
+training, so the predator learns to use the intent slot as a \emph{belief}---to
+hedge when it is flat and exploit when it is peaked.
+\end{description}
+Each condition is a separate MAPPO co-training run (centralized critic,
+3 seeds, $2\times10^6$ steps); the prey and predators co-adapt.
+
+
+%% ==================================================================
+\section{Method: inference and an uncertainty-aware best response}
+
+\paragraph{Behavioral intent encoder.}
+Let $\tau_{0:k} = (x^0_q,\dots,x^{k-1}_q)$ be the prey's first $k$ positions. We
+fit a classifier $q_\phi(\intent \mid \tau_{0:k})$ (a one-hidden-layer MLP on the
+flattened positions) and read both a hard estimate $\hat\intent = \arg\max
+q_\phi$ and the full posterior $\bel_k = q_\phi(\cdot \mid \tau_{0:k})$. We report
+$k$-resolved accuracy $a(k)$ and posterior entropy $H(k) = \expect[-\sum_\intent
+\bel_k(\intent)\log \bel_k(\intent)]$, the latter being the model's own
+uncertainty.
+
+\paragraph{Online belief at test.}
+Against a fixed prey, the predator's belief sharpens as the episode unfolds: at
+step $t$ we form $\bel_t = q_\phi(\cdot \mid \tau_{0:k(t)})$ using the largest
+trained window $k(t) \le t{+}1$ (flat $\tfrac14\mathbf{1}$ before the first
+window). The \textbf{belief} predator---trained on soft beliefs---consumes
+$\bel_t$ directly. We compare five intent signals fed to the predator:
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+signal & predator / meaning \\
+\midrule
+guess     & oracle predator, a \emph{random} fixed intent (model with no inference) \\
+inferred  & oracle predator, hard $\hat\intent$ from $k{=}8$ steps (commits to a guess) \\
+unaware   & intent-blind predator (no model; strong hedger baseline) \\
+belief    & uncertainty-aware predator fed the online posterior $\bel_t$ (\textbf{ours}) \\
+oracle    & oracle predator, true $\intent$ (ceiling) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+%% ==================================================================
+\section{Results}
+
+\paragraph{The intent is hidden, expressed, and inferable.}
+Figure~\ref{fig:main}(left) shows the prey's occupancy coloured by intent: four
+clusters at the four corners, in one fixed arena---structure a predator cannot
+read off a single frame but can infer over time. The encoder
+(Figure~\ref{fig:main}, middle; Table~\ref{tab:enc}) climbs from near chance at
+$k{=}3$ to $0.97$ by the episode's end, its posterior entropy collapsing from
+$1.35$ to $0.03$ nats.
+
+\begin{table}[h]
+  \centering
+  \caption{Intent recovery from the prey's first $k$ steps (4-way; chance
+  $0.25$).}\label{tab:enc}
+  \begin{tabular}{@{}lcccccc@{}}
+    \toprule
+    steps $k$ & 3 & 5 & 8 & 12 & 18 & 25 \\
+    \midrule
+    accuracy            & 0.37 & 0.70 & 0.74 & 0.84 & 0.93 & 0.97 \\
+    posterior entropy (nats) & 1.35 & 0.75 & 0.52 & 0.31 & 0.09 & 0.03 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Knowing the intent is highly exploitable; a naive model is brittle.}
+Table~\ref{tab:ladder} is the capture ladder. Observing the true intent lifts the
+predator from the intent-blind $2.68$ to $4.05$ captures/episode---a
+\textbf{+51\%} gain, so intent is very much worth knowing. But that oracle
+predator is brittle: fed a \emph{random} intent it collapses to $1.42$, well
+below the intent-blind hedger, because it learned to rely on a signal it now
+cannot trust. Feeding it a hard inferred intent at $k{=}8$ recovers most of the
+damage ($2.56$) but still does not beat the hedger---committing to a single guess
+inherits the encoder's $26\%$ error.
+
+\begin{table}[h]
+  \centering
+  \caption{Captures per episode (mean $\pm$ std over 3 seeds, 300 episodes each).
+  Each predator faces its co-trained prey.}\label{tab:ladder}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    predator / intent signal & captures / ep & vs.\ unaware \\
+    \midrule
+    guess (oracle pred, random intent)       & $1.42 \pm 0.10$ & $-47\%$ \\
+    inferred (oracle pred, hard $\hat\intent$@8) & $2.56 \pm 0.11$ & $-4\%$ \\
+    unaware (no intent; hedger)               & $2.68 \pm 0.15$ & --- \\
+    \textbf{belief (uncertainty-aware, ours)} & $\mathbf{2.82 \pm 0.10}$ & $\mathbf{+5\%}$ \\
+    oracle (true intent)                      & $4.05 \pm 0.24$ & $+51\%$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Representing uncertainty is what makes inference pay.}
+The uncertainty-aware \textbf{belief} predator---trained on soft beliefs and fed
+the online posterior---\emph{beats} the intent-blind baseline
+($2.82$ vs.\ $2.68$) and recovers $53\%$ of the oracle-over-guess gap. It wins
+where the hard-inferred predator does not because it hedges while $\bel_t$ is
+flat (behaving like the robust hedger early) and commits only as $\bel_t$
+sharpens (approaching the oracle late). The ordering
+$\text{guess} < \text{inferred} \approx \text{unaware} < \text{belief} <
+\text{oracle}$ is the entire thesis of uncertainty-aware opponent modeling on one
+axis: inference helps, but only if the agent represents how much it knows.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../plots/part2_intent_eval.png}
+  \caption{\textbf{Left:} prey occupancy coloured by hidden intent---four corner
+  clusters in one fixed arena. \textbf{Middle:} the behavioral encoder's intent
+  accuracy rises and its posterior entropy falls with steps observed.
+  \textbf{Right:} captures per episode. Knowing the intent is worth $+51\%$
+  (oracle vs.\ unaware); a naive intent-trained predator collapses without it
+  (guess); the uncertainty-aware belief predator, fed the online posterior, beats
+  the intent-blind baseline.}
+  \label{fig:main}
+\end{figure}
+
+
+%% ==================================================================
+\section{Discussion}
+
+\paragraph{Why this design, and not the obvious one.}
+A tempting alternative induces ``strategies'' by changing the environment (e.g.\
+moving where resources sit) and training a separate policy per layout. But then
+the strategy is visible in the observation and the opponent model is partly
+circular---an agent can condition on the environment and skip it. The hidden
+intent here is invisible in any single frame; it can \emph{only} be had by
+modeling the opponent's behavior over time. That is the regime the method is for.
+
+\paragraph{The magnitude, honestly.}
+The uncertainty-aware gain over the intent-blind hedger is real but modest
+($+5\%$) at $H=25$ steps, because much of an episode is spent before the belief
+sharpens; the gain concentrates in the later, confident steps and would grow with
+horizon. The large, unambiguous numbers are the \emph{value} of intent
+($+51\%$ oracle vs.\ unaware) and the \emph{brittleness} of a naive model
+($-47\%$ when its intent input is wrong). Together they motivate exactly the
+uncertainty-aware treatment: the prize is large, and the failure mode of ignoring
+uncertainty is severe.
+
+\paragraph{Toward a planner.}
+The belief predator here is a reactive policy conditioned on a belief; the natural
+next step is to put $\bel_t$ inside a model-based planner, sampling the opponent's
+moves from a belief-conditioned model and scoring nodes with a belief-conditioned
+value, so the predator plans interceptions rather than reacting to them. The
+encoder, the belief representation, and the value of acting on it are all in
+place.
+
+\end{document}
