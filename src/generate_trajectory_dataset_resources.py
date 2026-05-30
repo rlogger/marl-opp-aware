@@ -179,11 +179,13 @@ def _make_env(placement):
 # ------------------------------------------------------------------ #
 
 def rollout_one_checkpoint(algorithm, placement, seed_idx, num_eps,
-                           eval_placement, rng_key):
+                           eval_placement, rng_key, log_obs=False):
     """Roll out `num_eps` parallel greedy episodes of length NUM_STEPS.
 
     `placement`      -- training placement (determines which checkpoint to load)
     `eval_placement` -- env placement used for the actual rollouts
+    `log_obs`        -- if True, also return the prey observation at each step
+                        (aligned with `actions`), for behaviour cloning.
     """
     base_env = _make_env(eval_placement)
     teams    = split_teams(base_env)
@@ -235,10 +237,14 @@ def rollout_one_checkpoint(algorithm, placement, seed_idx, num_eps,
     coll     = [np.asarray(env_state.env_state.collected)]
     prey_acts, prey_rews = [], []
     pred_acts, pred_rews = [], []
+    prey_obs_log = []
 
     for _ in range(NUM_STEPS):
         rng_key, k = jax.random.split(rng_key)
         valid = wrapped.get_valid_actions(env_state.env_state)
+
+        if log_obs:
+            prey_obs_log.append(np.asarray(obs[prey_name]))   # pre-step obs
 
         all_actions = {}
         for t in teams:
@@ -270,7 +276,7 @@ def rollout_one_checkpoint(algorithm, placement, seed_idx, num_eps,
         pred_rews.append(np.stack(
             [np.asarray(rewards[n]) for n in pred_names], axis=-1))
 
-    return dict(
+    out = dict(
         positions      = np.stack(prey_pos, axis=1).astype(np.float32),
         pred_positions = np.stack(pred_pos, axis=1).astype(np.float32),
         resource_pos   = np.stack(res_pos, axis=1).astype(np.float32),
@@ -281,6 +287,9 @@ def rollout_one_checkpoint(algorithm, placement, seed_idx, num_eps,
         pred_actions   = np.stack(pred_acts, axis=1).astype(np.int32),
         pred_rewards   = np.stack(pred_rews, axis=1).astype(np.float32),
     )
+    if log_obs:
+        out["prey_obs"] = np.stack(prey_obs_log, axis=1).astype(np.float32)  # (N,T,obs)
+    return out
 
 
 # ------------------------------------------------------------------ #

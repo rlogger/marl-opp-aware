@@ -51,8 +51,12 @@ $0.98$ (chance $0.50$); an unsupervised VAE on the trajectory occupancy
 histogram recovers the strategy with adjusted Rand index $0.87$ and a latent
 linear-probe accuracy of $0.99$ given $\geq 100$ steps of observation; and MAPPO
 predators co-trained against one prey suffer a $43\%$ drop in capture rate when
-faced with the unseen prey. We give the formal setup, the encoder objective, and
-the metric definitions, and discuss the regime-dependence of each result.
+faced with the unseen prey. Building on these, we realize the proposal's Part~1:
+a single behavior-cloned policy $\pi_\psi(a \mid s, \zlat)$ that reproduces either
+specialist by swapping its latent, whose route is controllable by $\zlat$ at
+$0.85$ even with the environment held fixed. We give the formal setup, the
+encoder and cloning objectives, and the metric definitions, and discuss the
+regime-dependence of each result.
 \end{abstract}
 
 
@@ -402,18 +406,77 @@ capped before the occupancy washes out.
 
 
 %% ==================================================================
-\section{From preconditions to the method}
+\section{Part 1 realized: a latent-conditioned opponent model}
 
-With P1--P3 established, the proposal's two parts are directly actionable on this
-task. \textbf{Part 1:} replace the occupancy-VAE diagnostic with the full
-latent-conditioned opponent model $\pi^{\mathrm{red}}_\psi(a \mid s, \zlat)$,
-trained by behavior cloning (then contrastive preference learning) against the
-specialist trajectories, with $\zlat$ from the encoder validated here.
-\textbf{Part 2:} embed $\pi^{\mathrm{red}}_\psi(\cdot \mid s, \zlat)$ as the
-red-action sampler in a MuZero-style search and condition the blue value function
-on $\zlat$; P3 gives the concrete target, recovering on the OOD diagonal the
-captures a co-trained predator loses. The headline numbers to beat are in
-Table~\ref{tab:p3}: an opponent-aware circle-predator should catch the
-corners-prey at closer to $1.29$ than the unaware $0.72$.
+With P1--P3 established we build the proposal's Part~1 directly: a single prey
+policy $\pi^{\mathrm{red}}_\psi(a \mid s, \zlat)$ that reproduces either
+specialist by conditioning on the latent. Let $z_\phi(\tau) = \mu_\phi(\occ_B(\tau))$
+be the encoder's posterior mean (Eq.~\ref{eq:elbo}, the same $Z = 3$ occupancy
+VAE as P2). We log $(s_t, a_t)$ pairs from the circle- and corners-specialist
+rollouts, tag each pair with its trajectory's code, and minimize the
+behavior-cloning loss
+\begin{equation}
+  \mathcal{L}_{\mathrm{BC}}(\psi)
+  = -\,\expect_{\tau \sim \mathcal{D}}\;
+      \expect_{(s_t,a_t)\in\tau}
+      \Big[\log \pi^{\mathrm{red}}_\psi\!\big(a_t \mid s_t,\, z_\phi(\tau)\big)\Big].
+  \label{eq:bc}
+\end{equation}
+We then form class-mean codes $\bar z_\ell = \expect_{\tau \in \ell}[z_\phi(\tau)]$
+and probe \emph{latent controllability}: roll $\pi^{\mathrm{red}}_\psi$ out with
+$\zlat$ \emph{clamped} to $\bar z_{\mathrm{circle}}$ vs.\ $\bar z_{\mathrm{corners}}$
+and measure whether the resulting routes differ. We report this both
+across matched environments (each $\bar z_\ell$ in its native layout) and, more
+stringently, in a \emph{fixed} environment with the same predators, where only
+$\zlat$ changes; the latter isolates the latent's effect from the observation.
+
+\begin{table}[h]
+  \centering
+  \caption{\textbf{Part 1.} Latent-conditioned BC (IQL prey). Action-match is
+  held-out accuracy of $\arg\max_a \pi_\psi(a \mid s, z_\phi(\tau))$ against the
+  specialist's action; route separation is the occupancy-probe accuracy
+  separating the two clamped-$\zlat$ rollouts (chance $0.50$).}\label{tab:part1}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Quantity & Value & Baseline / chance \\
+    \midrule
+    BC action-match (held-out)               & $0.62$ & $0.24$ (majority action) \\
+    Encoder separates specialists            & $0.96$ & $0.50$ \\
+    Route sep., matched env ($\bar z_\ell$)  & $\mathbf{1.00}$ & $0.50$ \\
+    Latent control, fixed env (swap $\zlat$) & $\mathbf{0.85}$ & $0.50$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../plots/part1_latent_bc_iql.png}
+  \caption{\textbf{Part 1.} One BC policy, two routes by swapping the latent.
+  Left/middle: occupancy of $\pi^{\mathrm{red}}_\psi$ clamped to
+  $\bar z_{\mathrm{circle}}$ (a diamond) and $\bar z_{\mathrm{corners}}$ (a
+  square). Right: action-match exceeds the majority-action baseline, and the
+  latent controls the route even with the environment held fixed ($0.85$).}
+  \label{fig:part1}
+\end{figure}
+
+The policy clones each specialist's action at $0.62$ held-out accuracy (vs.\ a
+$0.24$ majority-action floor; the residual is the specialist's own stochasticity
+given $s$), and---decisively for the planner---swapping $\zlat$ alone steers the
+prey's route at $0.85$ in a fixed environment (Table~\ref{tab:part1},
+Figure~\ref{fig:part1}). This is the controllable opponent model Part~2 requires.
+
+
+%% ==================================================================
+\section{Outlook: Part 2}
+
+\textbf{Part 2} embeds $\pi^{\mathrm{red}}_\psi(\cdot \mid s, \zlat)$ as the
+red-action sampler in a MuZero-style search and conditions the blue value
+function on $\zlat$ inferred from observed red play; the contrastive-preference
+variant replaces Eq.~\eqref{eq:bc} with a Bradley--Terry objective whose negative
+trajectories are generated by the planner itself. P3 gives the concrete target,
+recovering on the OOD diagonal the captures a co-trained predator loses: the
+headline numbers to beat are in Table~\ref{tab:p3}---an opponent-aware
+circle-predator should catch the corners-prey closer to the in-distribution
+$1.29$ than the unaware $0.72$.
 
 \end{document}
