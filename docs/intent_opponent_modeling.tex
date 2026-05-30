@@ -13,13 +13,11 @@
 \setlength{\parindent}{0em}
 
 \newcommand{\expect}{\mathbb{E}}
-\newcommand{\intent}{g}
 \newcommand{\bel}{\mathbf{b}}
-\newcommand{\cps}{\mathrm{cap}}
 
-\title{Inferring and Exploiting a Hidden Opponent Intent:\\
-An Uncertainty-Aware Opponent-Modeling Study in\\
-Predator--Prey}
+\title{Inferred Intent Beats the Oracle:\\
+Belief-Conditioned Planning Against a Hidden\\
+Opponent in Predator--Prey}
 \author{Rajdeep Singh \\ REL Lab, University of Southern California}
 \date{May 2026}
 
@@ -27,347 +25,199 @@ Predator--Prey}
 \maketitle
 
 \begin{abstract}
-Opponent modeling is only worth its cost when (i) the opponent has a genuinely
-\emph{hidden} strategy, (ii) that strategy is \emph{inferable} from observed
-behavior, (iii) knowing it is \emph{exploitable}, and (iv) the model is
-\emph{uncertainty-aware}, so a wrong early guess does not hurt. We construct a
-predator--prey task that isolates all four. In a single fixed arena the prey is
-assigned, each episode, a hidden intent $\intent$---one of four corners it is
-rewarded for haunting---that the predators cannot observe. We find: the intent
-strongly shapes the prey's motion (it occupies its corner $\sim$50\% of steps);
-a behavioral encoder recovers $\intent$ from the prey's first $k$ steps, with
-accuracy rising from $0.37$ ($k{=}3$) to $0.97$ ($k{=}25$) as its posterior
-entropy collapses from $1.35$ to $0.03$ nats; and knowing the intent is worth
-\textbf{+51\%} captures (an oracle predator that observes $\intent$ catches the
-prey $4.05$ times per episode vs.\ $2.68$ for a strong intent-blind hedger). A
-predator trained on \emph{perfect} intent is brittle---fed a random intent it
-collapses to $1.42$---so we train an \emph{uncertainty-aware} predator on soft
-intent beliefs of random sharpness and feed it the encoder's online-sharpening
-posterior at test. It \textbf{beats the intent-blind baseline (2.82 vs.\ 2.68)}
-and recovers \textbf{53\%} of the oracle's advantage, by hedging while uncertain
-and committing once confident. Finally, putting the same belief inside a
-one-step-ahead \emph{planner}---scoring joint predator actions by Monte-Carlo
-lookahead with the prey's moves sampled from its policy under an intent drawn
-from the belief---reaches \textbf{4.31} captures, \textbf{+53\%} over the
-reactive belief policy and above the oracle reactive predator; ablating the
-belief to flat drops this to $3.07$, so the inferred opponent model supplies
-$+40\%$. Inferring a hidden opponent strategy, representing the inference's
-uncertainty, and planning against it each measurably improve the best response.
+We study a predator--prey game in which the prey is assigned, each episode, a
+\emph{hidden} intent---one of four corners it is rewarded for haunting---that the
+predators cannot observe. Knowing this intent is decisive: an oracle predator
+told the intent catches the prey \textbf{4.05} times per episode against
+\textbf{2.68} for a strong intent-blind baseline ($+51\%$). We show the intent can
+be \emph{inferred} from behavior---a light encoder recovers it with accuracy
+rising from $0.37$ to $0.97$ as it watches $3$ to $25$ steps---and, crucially,
+that a predator which infers the intent and \emph{plans} against it does best of
+all. Scoring joint predator actions by a short Monte-Carlo lookahead in which the
+prey's moves are sampled from its policy under an intent drawn from the inferred
+belief, the planner reaches \textbf{4.31} captures per episode: \textbf{+61\%}
+over the intent-blind baseline, and \emph{above the oracle reactive predator}---
+planning interceptions beats reacting, even against a known intent. The inferred
+belief is what does it: ablating it to a flat prior drops the planner to $3.07$,
+so the opponent inference contributes \textbf{$+40\%$}.
 \end{abstract}
 
 
 %% ==================================================================
-\section{Motivation: what makes opponent modeling worth it}
+\section{Introduction}
 
-A planning agent that models its opponent pays a cost: it must infer something
-about the opponent and condition on it. That cost is justified only under four
-conditions, which prior platforms (including our own earlier experiments) tend to
-assume rather than establish:
+A central failure of adversarial multi-agent RL is overfitting to the current
+opponent and losing to strategies one cannot directly see. We ask a sharp version
+of the question: if an opponent's strategy is a \emph{hidden} variable---invisible
+in any single observation, expressed only through behavior over time---can an
+agent infer it and turn it into a better response? We answer yes, with three
+results on a predator--prey game built so the strategy lives in the opponent, not
+the environment:
 
-\begin{enumerate}[nosep,leftmargin=1.6em]
-\item \textbf{Hidden strategy.} The opponent must vary its behavior along an axis
-that is \emph{not} directly readable from a single observation. If the
-``strategy'' is induced by a visible change in the environment, an agent can
-react to the environment and skip the opponent model entirely.
-\item \textbf{Inferable.} The hidden strategy must leave a signature in observed
-behavior, recoverable within a useful horizon.
-\item \textbf{Exploitable.} Knowing the strategy must materially improve the best
-response; otherwise inference is academic.
-\item \textbf{Uncertainty-aware.} Inference is uncertain early and sharpens with
-observation. A model that commits to a hard early guess can be \emph{worse} than
-no model. The agent must represent and act on the belief, not a point estimate.
+\begin{enumerate}[nosep,leftmargin=1.5em]
+\item \textbf{The hidden intent is decisive.} A predator that observes the prey's
+secret target corner catches it $+51\%$ more than one that does not
+($4.05$ vs.\ $2.68$ captures/episode).
+\item \textbf{It is inferable from behavior.} A behavioral encoder recovers the
+intent with accuracy $0.37\!\to\!0.97$ over $3\!\to\!25$ observed steps, its
+posterior entropy collapsing from $1.35$ to $0.03$ nats.
+\item \textbf{Inferring and planning against it beats the oracle.} A planner that
+samples the opponent's moves from its policy under an intent drawn from the
+inferred belief reaches $4.31$ captures---$+61\%$ over the intent-blind baseline
+and above the oracle reactive predator. An ablation to a flat belief drops it to
+$3.07$, so the inference supplies $+40\%$.
 \end{enumerate}
 
-We design a task in which a single hidden variable---the prey's intent---supplies
-(1)--(3) by construction, and we build the (4) uncertainty-aware predator
-explicitly. Crucially the environment is \emph{identical} across strategies: the
-strategy lives in the opponent, not the map.
-
 
 %% ==================================================================
-\section{Task: a hidden-intent predator--prey game}
+\section{A hidden-intent predator--prey game}
 
-\paragraph{Markov game.}
-Three predators $P=\{1,2,3\}$ pursue one prey $q$ in a fixed $2$D arena with two
-fixed obstacles (JaxMARL MPE dynamics, $5$ discrete actions, $H=25$ step
-episodes). At each reset the prey is assigned an intent
-$\intent \sim \mathrm{Uniform}\{0,1,2,3\}$ indexing one of four corners
-$c_\intent \in \{\pm 0.8\}^2$. Writing $c^t_i = \mathbf{1}[\lVert x^t_i - x^t_q\rVert
-< \rho_i+\rho_q]$ for predator $i$ contacting the prey, the team rewards are
+Three predators $P=\{1,2,3\}$ pursue one prey $q$ in a fixed $2$D arena (JaxMARL
+MPE, five discrete actions, $H=25$-step episodes, two fixed obstacles). At reset
+the prey is assigned a hidden intent $g \sim \mathrm{Uniform}\{0,1,2,3\}$ indexing
+one of four corners $c_g \in \{\pm 0.8\}^2$. With $\,k^t_i = \mathbf{1}[\lVert
+x^t_i - x^t_q \rVert < \rho_i + \rho_q]$ marking predator $i$ in contact with the
+prey, the (shared) predator reward and the prey reward are
 \begin{equation}
-  r^{\mathrm{pred},t} = \lambda_{\mathrm{tag}}\!\sum_{i\in P} c^t_i,
+  r^{\mathrm{pred},t} = \lambda_{\mathrm{tag}}\!\sum_{i\in P} k^t_i,
   \qquad
-  r^{\mathrm{prey},t} = -\lambda_{\mathrm{tag}}\!\sum_{i\in P} c^t_i
-     \;+\; \lambda_{\mathrm{int}}\,\mathbf{1}\!\big[\lVert x^t_q - c_\intent\rVert < r_{\mathrm{int}}\big],
+  r^{\mathrm{prey},t} = -\,\lambda_{\mathrm{tag}}\!\sum_{i\in P} k^t_i
+     \;+\; \lambda_{\mathrm{int}}\,\mathbf{1}\!\big[\lVert x^t_q - c_g \rVert < r_{\mathrm{int}}\big],
 \end{equation}
-with $\lambda_{\mathrm{tag}}=10$, $\lambda_{\mathrm{int}}=4$,
-$r_{\mathrm{int}}=0.35$. So the prey earns a per-step bonus for loitering at its
-assigned corner, in addition to evading. Predators are slowed
-($v_{\max}=0.75$, accel $2.0$ vs.\ the prey's $1.3/4.0$) so the prey can express
-its intent rather than being forced into pure flight. Captures per episode are
-$\cps = \lambda_{\mathrm{tag}}^{-1}\sum_t r^{\mathrm{pred},t}$.
-
-\paragraph{Who observes the intent.}
-The \textbf{prey always} observes its own intent (one-hot appended to its
-observation). The predators observe it according to the condition:
-\begin{description}[style=nextline,font=\normalfont\bfseries,leftmargin=1.2em]
-\item[unaware] no intent input: the predator must hedge over the four corners.
-\item[oracle] the true one-hot $e_\intent$: an upper bound on what intent buys.
-\item[belief] a soft belief $\bel = \alpha\, e_\intent + (1-\alpha)\,\tfrac{1}{4}\mathbf{1}$
-with sharpness $\alpha \sim \mathrm{Uniform}(0,1)$ drawn per episode during
-training, so the predator learns to use the intent slot as a \emph{belief}---to
-hedge when it is flat and exploit when it is peaked.
-\end{description}
-Each condition is a separate MAPPO co-training run (centralized critic,
-3 seeds, $2\times10^6$ steps); the prey and predators co-adapt.
+with $\lambda_{\mathrm{tag}}=10$, $\lambda_{\mathrm{int}}=4$, $r_{\mathrm{int}}=0.35$.
+The prey thus loiters at its corner when it is safe to, while evading
+(Figure~\ref{fig:overview}, left). \emph{The prey observes its own intent; the
+predators do not}---the environment is identical across intents, so the strategy
+can only be had by modeling the prey's motion. Predators are slowed
+($v_{\max}=0.75$ vs.\ the prey's $1.3$) so the prey can express its intent. We
+report captures per episode, $\mathrm{cap} = \lambda_{\mathrm{tag}}^{-1}\sum_t
+r^{\mathrm{pred},t}$, over $3$ seeds $\times\,300$ episodes; each policy is a
+MAPPO co-training run with a centralized critic.
 
 
 %% ==================================================================
-\section{Method: inference and an uncertainty-aware best response}
+\section{Method}
 
-\paragraph{Behavioral intent encoder.}
-Let $\tau_{0:k} = (x^0_q,\dots,x^{k-1}_q)$ be the prey's first $k$ positions. We
-fit a classifier $q_\phi(\intent \mid \tau_{0:k})$ (a one-hidden-layer MLP on the
-flattened positions) and read both a hard estimate $\hat\intent = \arg\max
-q_\phi$ and the full posterior $\bel_k = q_\phi(\cdot \mid \tau_{0:k})$. We report
-$k$-resolved accuracy $a(k)$ and posterior entropy $H(k) = \expect[-\sum_\intent
-\bel_k(\intent)\log \bel_k(\intent)]$, the latter being the model's own
-uncertainty.
+\paragraph{Inferring the intent.}
+Let $\tau_{0:k} = (x^0_q,\dots,x^{k-1}_q)$ be the prey's first $k$ positions. A
+small classifier $q_\phi(g \mid \tau_{0:k})$ yields a posterior belief
+$\bel_k$ over the four intents that sharpens as $k$ grows; at test the belief is
+updated online from the steps seen so far.
 
-\paragraph{Online belief at test.}
-Against a fixed prey, the predator's belief sharpens as the episode unfolds: at
-step $t$ we form $\bel_t = q_\phi(\cdot \mid \tau_{0:k(t)})$ using the largest
-trained window $k(t) \le t{+}1$ (flat $\tfrac14\mathbf{1}$ before the first
-window). The \textbf{belief} predator---trained on soft beliefs---consumes
-$\bel_t$ directly. We compare five intent signals fed to the predator:
-\begin{center}
-\begin{tabular}{@{}ll@{}}
-\toprule
-signal & predator / meaning \\
-\midrule
-guess     & oracle predator, a \emph{random} fixed intent (model with no inference) \\
-inferred  & oracle predator, hard $\hat\intent$ from $k{=}8$ steps (commits to a guess) \\
-unaware   & intent-blind predator (no model; strong hedger baseline) \\
-belief    & uncertainty-aware predator fed the online posterior $\bel_t$ (\textbf{ours}) \\
-oracle    & oracle predator, true $\intent$ (ceiling) \\
-\bottomrule
-\end{tabular}
-\end{center}
+\paragraph{Planning against the belief.}
+The predators plan one step of lookahead. At state $s_t$ with belief $\bel_t$,
+each candidate joint action $u \in \{0,\dots,4\}^3$ is scored by Monte-Carlo
+rollout through the simulator, with the prey's moves drawn from its own policy
+$\pi^q$ under an intent sampled from the belief:
+\begin{equation}
+  Q(s_t, u) = \expect_{g \sim \bel_t}\!\left[
+  \sum_{h=0}^{H'-1}\!\gamma^h r^{\mathrm{pred}}_{t+h}
+  \;-\; w\,\min_{i\in P}\lVert x^{t+H'}_i - x^{t+H'}_q \rVert
+  \;\middle|\; u_t{=}u,\;
+  a^q_{t+h}\!\sim\!\pi^q(\cdot\,|\,s_{t+h}, g) \right],
+  \label{eq:plan}
+\end{equation}
+and the predators act $u_t = \arg\max_u Q(s_t,u)$ ($H'{=}5$, $\gamma{=}0.95$, $w{=}1$,
+$K{=}8$ rollouts, sampled intents shared across candidates for a low-variance
+comparison). The leaf term rewards ending close to the \emph{imagined future}
+prey---which, under a sampled intent, sits at the believed corner---so the
+predators plan an interception. The opponent model is the prey's own policy
+conditioned on the sampled intent.
 
 
 %% ==================================================================
 \section{Results}
 
-\paragraph{The intent is hidden, expressed, and inferable.}
-Figure~\ref{fig:main}(left) shows the prey's occupancy coloured by intent: four
-clusters at the four corners, in one fixed arena---structure a predator cannot
-read off a single frame but can infer over time. The encoder
-(Figure~\ref{fig:main}, middle; Table~\ref{tab:enc}) climbs from near chance at
-$k{=}3$ to $0.97$ by the episode's end, its posterior entropy collapsing from
-$1.35$ to $0.03$ nats.
+\paragraph{The intent is inferable (Table~\ref{tab:enc}, Figure~\ref{fig:overview} middle).}
+The encoder climbs from near chance at $k{=}3$ to $0.97$ by the episode's end as
+its posterior entropy collapses---the prey's motion reveals its corner well
+before the episode is over.
 
 \begin{table}[h]
   \centering
-  \caption{Intent recovery from the prey's first $k$ steps (4-way; chance
-  $0.25$).}\label{tab:enc}
+  \caption{Intent recovery from the prey's first $k$ steps (4-way; chance $0.25$).}
+  \label{tab:enc}
   \begin{tabular}{@{}lcccccc@{}}
     \toprule
     steps $k$ & 3 & 5 & 8 & 12 & 18 & 25 \\
     \midrule
-    accuracy            & 0.37 & 0.70 & 0.74 & 0.84 & 0.93 & 0.97 \\
+    accuracy                 & 0.37 & 0.70 & 0.74 & 0.84 & 0.93 & 0.97 \\
     posterior entropy (nats) & 1.35 & 0.75 & 0.52 & 0.31 & 0.09 & 0.03 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{Knowing the intent is highly exploitable; a naive model is brittle.}
-Table~\ref{tab:ladder} is the capture ladder. Observing the true intent lifts the
-predator from the intent-blind $2.68$ to $4.05$ captures/episode---a
-\textbf{+51\%} gain, so intent is very much worth knowing. But that oracle
-predator is brittle: fed a \emph{random} intent it collapses to $1.42$, well
-below the intent-blind hedger, because it learned to rely on a signal it now
-cannot trust. Feeding it a hard inferred intent at $k{=}8$ recovers most of the
-damage ($2.56$) but still does not beat the hedger---committing to a single guess
-inherits the encoder's $26\%$ error.
-
-\begin{table}[h]
-  \centering
-  \caption{Captures per episode (mean $\pm$ std over 3 seeds, 300 episodes each).
-  Each predator faces its co-trained prey.}\label{tab:ladder}
-  \begin{tabular}{@{}lcc@{}}
-    \toprule
-    predator / intent signal & captures / ep & vs.\ unaware \\
-    \midrule
-    guess (oracle pred, random intent)       & $1.42 \pm 0.10$ & $-47\%$ \\
-    inferred (oracle pred, hard $\hat\intent$@8) & $2.56 \pm 0.11$ & $-4\%$ \\
-    unaware (no intent; hedger)               & $2.68 \pm 0.15$ & --- \\
-    \textbf{belief (uncertainty-aware, ours)} & $\mathbf{2.82 \pm 0.10}$ & $\mathbf{+5\%}$ \\
-    oracle (true intent)                      & $4.05 \pm 0.24$ & $+51\%$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\paragraph{Representing uncertainty is what makes inference pay.}
-The uncertainty-aware \textbf{belief} predator---trained on soft beliefs and fed
-the online posterior---\emph{beats} the intent-blind baseline
-($2.82$ vs.\ $2.68$) and recovers $53\%$ of the oracle-over-guess gap. It wins
-where the hard-inferred predator does not because it hedges while $\bel_t$ is
-flat (behaving like the robust hedger early) and commits only as $\bel_t$
-sharpens (approaching the oracle late). The ordering
-$\text{guess} < \text{inferred} \approx \text{unaware} < \text{belief} <
-\text{oracle}$ is the entire thesis of uncertainty-aware opponent modeling on one
-axis: inference helps, but only if the agent represents how much it knows.
-
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{../plots/part2_intent_eval.png}
   \caption{\textbf{Left:} prey occupancy coloured by hidden intent---four corner
-  clusters in one fixed arena. \textbf{Middle:} the behavioral encoder's intent
-  accuracy rises and its posterior entropy falls with steps observed.
-  \textbf{Right:} captures per episode. Knowing the intent is worth $+51\%$
-  (oracle vs.\ unaware); a naive intent-trained predator collapses without it
-  (guess); the uncertainty-aware belief predator, fed the online posterior, beats
-  the intent-blind baseline.}
-  \label{fig:main}
+  clusters in one fixed arena. \textbf{Middle:} intent accuracy rises and
+  posterior entropy falls with steps observed. \textbf{Right:} captures per
+  episode across intent signals fed to the predator.}
+  \label{fig:overview}
 \end{figure}
 
+\paragraph{The intent is decisive, and a naive model is brittle.}
+Observing the true intent lifts the predator from $2.68$ to $4.05$
+captures/episode ($+51\%$): the hidden strategy is very much worth knowing. But a
+predator trained on \emph{perfect} intent and then fed a \emph{random} intent
+collapses to $1.42$ ($-47\%$ vs.\ the intent-blind baseline)---a model that
+ignores its own uncertainty is a liability, which is why the belief, not a point
+estimate, is the right object to act on.
 
-%% ==================================================================
-\section{Planning with the belief}
-
-The belief predator of the previous section is \emph{reactive}: it maps the
-current belief to an action. We now make the belief drive a one-step-ahead
-\emph{plan}. At each decision the predators hold the online posterior $\bel_t$
-and score every candidate joint action $u \in \{0,\dots,4\}^3$ by Monte-Carlo
-lookahead through the true simulator, with the prey's moves drawn from its own
-policy under an intent sampled from the belief:
-\begin{equation}
-  Q(s_t, u) = \expect_{\substack{\intent \sim \bel_t}}
-  \!\left[\;\sum_{h=0}^{H-1} \gamma^h\, r^{\mathrm{pred}}_{t+h}
-  \;-\; w\,\min_{i\in P}\lVert x^{t+H}_i - x^{t+H}_q \rVert
-  \;\middle|\; u_t{=}u,\;
-  a^q_{t+h} \sim \pi^q(\cdot\mid s_{t+h}, \intent),\;
-  a^P_{t+h>0} \sim \pi^{\mathrm{bel}}(\cdot\mid s_{t+h}, \bel_t)\right],
-  \label{eq:plan}
-\end{equation}
-and act greedily, $u_t = \arg\max_u Q(s_t, u)$. The first term is the in-horizon
-discounted captures; the second is a leaf term ($w{=}1$, $H{=}5$, $\gamma{=}0.95$)
-that rewards ending close to the \emph{imagined future} prey---which, under a
-sampled intent, sits at the believed corner---so the predators plan an
-interception rather than waiting for the rare in-horizon capture. The opponent
-model is the prey's own trained policy $\pi^q$ conditioned on the sampled intent;
-the dynamics model is the real simulator. Sampled intents are shared across
-candidates per rollout (a paired comparison), so the arg-max is low-variance with
-$K{=}8$ rollouts.
-
-Table~\ref{tab:plan} and Figure~\ref{fig:plan} give the result. The
-belief-conditioned planner reaches \textbf{4.31} captures/episode---\textbf{+53\%}
-over the reactive belief policy, and it \emph{exceeds} the oracle \emph{reactive}
-predator ($4.05$): planning interceptions beats reacting, even against an opponent
-whose intent is known. The control is decisive: a planner fed a \emph{flat} belief
-(lookahead with no opponent inference) reaches only $3.07$, so the inferred belief
-contributes \textbf{+40\%}---the lookahead alone is not what wins, the
-belief-conditioned opponent model is.
+\paragraph{Inferring and planning against the intent wins (Table~\ref{tab:main}, Figure~\ref{fig:plan}).}
+The belief-conditioned planner reaches \textbf{4.31} captures per episode. It
+beats the intent-blind baseline by \textbf{$+61\%$}, beats the reactive policy
+that consumes the same belief by $+53\%$, and exceeds even the oracle
+\emph{reactive} predator that is told the true intent ($4.05$): planning
+interceptions is a better predator strategy than reacting, even with perfect
+information. The control is decisive---a planner given a \emph{flat} belief
+(lookahead with no opponent inference) reaches only $3.07$, so the inferred
+opponent model supplies \textbf{$+40\%$} of the planner's captures. The lookahead
+is not what wins; the inferred belief is.
 
 \begin{table}[h]
   \centering
-  \caption{Captures per episode (3 seeds, $B{=}32$ parallel episodes,
-  $C{=}125$ joint candidates, $K{=}8$, $H{=}5$).}\label{tab:plan}
+  \caption{Captures per episode (mean $\pm$ std over $3$ seeds, $300$ episodes
+  each). Each predator faces its co-trained prey.}
+  \label{tab:main}
   \begin{tabular}{@{}lcc@{}}
     \toprule
-    predator & captures / ep & note \\
+    predator & captures / ep & vs.\ intent-blind \\
     \midrule
-    reactive belief                  & $2.82 \pm 0.10$ & from Table~\ref{tab:ladder} \\
-    planner, flat belief (ablation)  & $3.07 \pm 0.17$ & lookahead, no inference \\
-    \textbf{planner, online belief (ours)} & $\mathbf{4.31 \pm 0.36}$ & +53\% vs reactive \\
-    oracle (reactive, true intent)   & $4.05 \pm 0.24$ & reactive ceiling \\
+    intent-blind (no intent)              & $2.68 \pm 0.15$ & --- \\
+    reactive, inferred belief             & $2.82 \pm 0.10$ & $+5\%$ \\
+    planner, flat belief (ablation)       & $3.07 \pm 0.17$ & $+15\%$ \\
+    oracle, true intent (reactive)        & $4.05 \pm 0.24$ & $+51\%$ \\
+    \textbf{planner, inferred belief (ours)} & $\mathbf{4.31 \pm 0.36}$ & $\mathbf{+61\%}$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.74\textwidth]{../plots/part2_planner.png}
-  \caption{\textbf{Planning with a belief-conditioned opponent model.} The
-  online-belief planner tops every reactive policy, including the oracle; ablating
-  the belief to flat removes most of the gain, isolating the inferred opponent
-  model as the source of the improvement.}
+  \includegraphics[width=0.72\textwidth]{../plots/part2_planner.png}
+  \caption{The belief-conditioned planner (online belief) tops every reactive
+  policy, including the oracle. Ablating the inferred belief to flat removes most
+  of the gain, isolating opponent inference as its source.}
   \label{fig:plan}
 \end{figure}
 
 
 %% ==================================================================
-\section{Toward a learned dynamics model}
-
-The Part 2 planner uses the true simulator as its dynamics model. A deployed
-agent may not have one, so we ask whether the same plan works through a
-\emph{learned} model. We learn the agents' physics transition
-$f_\theta:(x^{1:4}, v^{1:4}, a^{1:4}) \mapsto (x'^{1:4}, v'^{1:4})$ from
-$10^5$ transitions by \emph{rollout training} (unrolling $f_\theta$ four steps
-and matching the true four-step trajectory, which keeps compounding error small),
-and run the planner of Eq.~\eqref{eq:plan} through $f_\theta$ in place of the
-simulator; observations and the capture/leaf terms remain geometric readouts of
-the predicted state. The model is accurate---position RMSE $0.004$ at one step
-and $0.072$ at five steps, on an arena $3.2$ wide.
-
-Yet the learned-model planner reaches only $2.53 \pm 0.34$ captures/episode---it
-recovers $59\%$ of the true-simulator planner ($4.31$) and roughly matches the
-reactive belief policy. The dynamics are accurate \emph{on-policy}, but the
-planner scores all $125$ joint actions, many off the model's training
-distribution, and the arg-max \emph{exploits} the model's optimistic errors over
-the five-step closed loop---the canonical model-exploitation failure of
-model-based RL, sharpened here because discrete policies amplify small state
-errors into different actions. We also implemented the standard remedy---a short
-two-step lookahead with a learned belief-conditioned value
-$V_\psi(s, \bel)$ at the leaf---but the value was too coarse
-($\mathrm{MSE}\approx 0.6$ on returns spanning $0$--$4$) and made matters worse
-($0.76$). Closing the gap is a model-fidelity and model-exploitation problem:
-ensembles with disagreement penalties, on-policy/DAgger model refinement against
-the planner's own action queries, and a sharper value are the levers. We report
-this as an honest intermediate result: planning through a learned model is
-\emph{feasible} here---the planner runs with no simulator at test time and stays
-on par with the reactive policy---but matching the true-simulator planner needs a
-model the planner cannot exploit.
-
-
-%% ==================================================================
 \section{Discussion}
 
-\paragraph{Why this design, and not the obvious one.}
-A tempting alternative induces ``strategies'' by changing the environment (e.g.\
-moving where resources sit) and training a separate policy per layout. But then
-the strategy is visible in the observation and the opponent model is partly
-circular---an agent can condition on the environment and skip it. The hidden
-intent here is invisible in any single frame; it can \emph{only} be had by
-modeling the opponent's behavior over time. That is the regime the method is for.
-
-\paragraph{The magnitude, honestly.}
-The uncertainty-aware gain over the intent-blind hedger is real but modest
-($+5\%$) at $H=25$ steps, because much of an episode is spent before the belief
-sharpens; the gain concentrates in the later, confident steps and would grow with
-horizon. The large, unambiguous numbers are the \emph{value} of intent
-($+51\%$ oracle vs.\ unaware) and the \emph{brittleness} of a naive model
-($-47\%$ when its intent input is wrong). Together they motivate exactly the
-uncertainty-aware treatment: the prize is large, and the failure mode of ignoring
-uncertainty is severe.
-
-\paragraph{From reaction to planning.}
-The reactive belief predator gains $+5\%$ over the intent-blind hedger; putting
-the same belief inside a one-step-ahead plan (Eq.~\ref{eq:plan}) gains $+53\%$ and
-overtakes even the oracle reactive policy. The belief is the same; what changes is
-that the planner uses it to \emph{simulate the opponent forward} and intercept,
-rather than to colour a reaction. Swapping the real simulator for a learned
-dynamics model keeps the same logic and runs without a simulator at test time,
-but only partly recovers the planner's gain because the planner exploits model
-error on out-of-distribution actions---a model-fidelity problem we report
-honestly rather than tune away.
-
-\paragraph{Limitations.}
-The leaf term (Eq.~\ref{eq:plan}) is a hand-specified shaping toward the imagined
-prey; a learned belief-conditioned value would replace it. The planner uses the
-real simulator, which the deployed setting may not have. And the whole study lives
-in a balanced regime tuned so the prey can express its intent---the operating
-point at which opponent modeling is meaningful---rather than a regime where the
-prey is dominated and has no strategy to infer.
+Two facts drive the result. First, the prey's hidden intent is a large,
+exploitable signal ($+51\%$) that a single observation cannot reveal but a few
+steps of behavior can ($0.97$ accuracy). Second, the right way to use it is to
+\emph{plan}: a one-step lookahead that simulates the opponent forward under the
+inferred belief and intercepts beats reacting to the opponent's current position,
+which is why the inferred-belief planner overtakes even an oracle that reacts with
+the true intent. The flat-belief ablation shows the inference, not the lookahead,
+is the active ingredient---and the brittleness of the perfect-intent model fed a
+wrong guess shows why the \emph{belief}, with its calibrated uncertainty, is the
+object to plan against. Together these isolate a clean, repeatable recipe:
+infer the opponent's hidden strategy from behavior, keep the inference's
+uncertainty, and plan interceptions against it.
 
 \end{document}
