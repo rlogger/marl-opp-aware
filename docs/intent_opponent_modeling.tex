@@ -45,9 +45,14 @@ collapses to $1.42$---so we train an \emph{uncertainty-aware} predator on soft
 intent beliefs of random sharpness and feed it the encoder's online-sharpening
 posterior at test. It \textbf{beats the intent-blind baseline (2.82 vs.\ 2.68)}
 and recovers \textbf{53\%} of the oracle's advantage, by hedging while uncertain
-and committing once confident. This is, to our knowledge, the cleanest
-demonstration on this platform that inferring a hidden opponent strategy---and
-representing the inference's uncertainty---improves the best response.
+and committing once confident. Finally, putting the same belief inside a
+one-step-ahead \emph{planner}---scoring joint predator actions by Monte-Carlo
+lookahead with the prey's moves sampled from its policy under an intent drawn
+from the belief---reaches \textbf{4.31} captures, \textbf{+53\%} over the
+reactive belief policy and above the oracle reactive predator; ablating the
+belief to flat drops this to $3.07$, so the inferred opponent model supplies
+$+40\%$. Inferring a hidden opponent strategy, representing the inference's
+uncertainty, and planning against it each measurably improve the best response.
 \end{abstract}
 
 
@@ -228,6 +233,70 @@ axis: inference helps, but only if the agent represents how much it knows.
 
 
 %% ==================================================================
+\section{Planning with the belief}
+
+The belief predator of the previous section is \emph{reactive}: it maps the
+current belief to an action. We now make the belief drive a one-step-ahead
+\emph{plan}. At each decision the predators hold the online posterior $\bel_t$
+and score every candidate joint action $u \in \{0,\dots,4\}^3$ by Monte-Carlo
+lookahead through the true simulator, with the prey's moves drawn from its own
+policy under an intent sampled from the belief:
+\begin{equation}
+  Q(s_t, u) = \expect_{\substack{\intent \sim \bel_t}}
+  \!\left[\;\sum_{h=0}^{H-1} \gamma^h\, r^{\mathrm{pred}}_{t+h}
+  \;-\; w\,\min_{i\in P}\lVert x^{t+H}_i - x^{t+H}_q \rVert
+  \;\middle|\; u_t{=}u,\;
+  a^q_{t+h} \sim \pi^q(\cdot\mid s_{t+h}, \intent),\;
+  a^P_{t+h>0} \sim \pi^{\mathrm{bel}}(\cdot\mid s_{t+h}, \bel_t)\right],
+  \label{eq:plan}
+\end{equation}
+and act greedily, $u_t = \arg\max_u Q(s_t, u)$. The first term is the in-horizon
+discounted captures; the second is a leaf term ($w{=}1$, $H{=}5$, $\gamma{=}0.95$)
+that rewards ending close to the \emph{imagined future} prey---which, under a
+sampled intent, sits at the believed corner---so the predators plan an
+interception rather than waiting for the rare in-horizon capture. The opponent
+model is the prey's own trained policy $\pi^q$ conditioned on the sampled intent;
+the dynamics model is the real simulator. Sampled intents are shared across
+candidates per rollout (a paired comparison), so the arg-max is low-variance with
+$K{=}8$ rollouts.
+
+Table~\ref{tab:plan} and Figure~\ref{fig:plan} give the result. The
+belief-conditioned planner reaches \textbf{4.31} captures/episode---\textbf{+53\%}
+over the reactive belief policy, and it \emph{exceeds} the oracle \emph{reactive}
+predator ($4.05$): planning interceptions beats reacting, even against an opponent
+whose intent is known. The control is decisive: a planner fed a \emph{flat} belief
+(lookahead with no opponent inference) reaches only $3.07$, so the inferred belief
+contributes \textbf{+40\%}---the lookahead alone is not what wins, the
+belief-conditioned opponent model is.
+
+\begin{table}[h]
+  \centering
+  \caption{Captures per episode (3 seeds, $B{=}32$ parallel episodes,
+  $C{=}125$ joint candidates, $K{=}8$, $H{=}5$).}\label{tab:plan}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    predator & captures / ep & note \\
+    \midrule
+    reactive belief                  & $2.82 \pm 0.10$ & from Table~\ref{tab:ladder} \\
+    planner, flat belief (ablation)  & $3.07 \pm 0.17$ & lookahead, no inference \\
+    \textbf{planner, online belief (ours)} & $\mathbf{4.31 \pm 0.36}$ & +53\% vs reactive \\
+    oracle (reactive, true intent)   & $4.05 \pm 0.24$ & reactive ceiling \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.74\textwidth]{../plots/part2_planner.png}
+  \caption{\textbf{Planning with a belief-conditioned opponent model.} The
+  online-belief planner tops every reactive policy, including the oracle; ablating
+  the belief to flat removes most of the gain, isolating the inferred opponent
+  model as the source of the improvement.}
+  \label{fig:plan}
+\end{figure}
+
+
+%% ==================================================================
 \section{Discussion}
 
 \paragraph{Why this design, and not the obvious one.}
@@ -248,12 +317,22 @@ horizon. The large, unambiguous numbers are the \emph{value} of intent
 uncertainty-aware treatment: the prize is large, and the failure mode of ignoring
 uncertainty is severe.
 
-\paragraph{Toward a planner.}
-The belief predator here is a reactive policy conditioned on a belief; the natural
-next step is to put $\bel_t$ inside a model-based planner, sampling the opponent's
-moves from a belief-conditioned model and scoring nodes with a belief-conditioned
-value, so the predator plans interceptions rather than reacting to them. The
-encoder, the belief representation, and the value of acting on it are all in
-place.
+\paragraph{From reaction to planning.}
+The reactive belief predator gains $+5\%$ over the intent-blind hedger; putting
+the same belief inside a one-step-ahead plan (Eq.~\ref{eq:plan}) gains $+53\%$ and
+overtakes even the oracle reactive policy. The belief is the same; what changes is
+that the planner uses it to \emph{simulate the opponent forward} and intercept,
+rather than to colour a reaction. This is the proposal's Part~2 with the real
+simulator as the dynamics model; the remaining step---a learned, MuZero-style
+dynamics model so the planner needs no simulator at test time---would extend the
+same construction without changing its logic.
+
+\paragraph{Limitations.}
+The leaf term (Eq.~\ref{eq:plan}) is a hand-specified shaping toward the imagined
+prey; a learned belief-conditioned value would replace it. The planner uses the
+real simulator, which the deployed setting may not have. And the whole study lives
+in a balanced regime tuned so the prey can express its intent---the operating
+point at which opponent modeling is meaningful---rather than a regime where the
+prey is dominated and has no strategy to infer.
 
 \end{document}
