@@ -238,6 +238,63 @@ supplies $+40\%$. The opponent inference, not the lookahead, is what wins.
 
 
 %% ==================================================================
+\section{Part 1 without labels: predict, don't reconstruct}
+
+The encoder above used intent labels. A Part~1 that scales should recover the
+opponent's strategy \emph{self-supervised}, from trajectories alone---and the
+\emph{objective} matters. We compare two self-supervised encoders of the prey
+trajectory on identical data, both bottlenecked to a $2$-D latent (so the latent
+\emph{is} the figure) and scored only afterward against the four ground-truth
+intents:
+\begin{itemize}[nosep,leftmargin=1.4em]
+\item \textbf{VAE (generative):} encode the first $12$ steps, then
+\emph{reconstruct} them (ELBO). It must model every detail---the random start and
+the evasion noise included.
+\item \textbf{JEPA (predictive):} encode the first $12$ steps, then \emph{predict
+the representation} of the future window (steps $12$--$24$, the corner approach)
+through an EMA target encoder---no reconstruction. It keeps only the predictable
+structure (where the prey is heading $=$ its strategy) and discards the noise.
+\end{itemize}
+
+\begin{table}[h]
+  \centering
+  \caption{Unsupervised recovery of the opponent's strategy from a $2$-D latent
+  (4-way; probe chance $0.25$). The predictive encoder wins on both metrics and
+  beats a supervised classifier trained on the raw window.}\label{tab:jepa}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    self-supervised encoder & probe acc. & GMM ARI \\
+    \midrule
+    VAE (generative, reconstruct)              & $0.54$ & $0.14$ \\
+    \textbf{JEPA (predictive, predict repr.)}  & $\mathbf{0.88}$ & $\mathbf{0.67}$ \\
+    \midrule
+    \emph{supervised classifier (raw window)}  & $0.85$ & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../plots/jepa_vs_vae_encoder.png}
+  \caption{The generative VAE latent blends the four intents (probe $0.54$); the
+  predictive JEPA latent separates them (probe $0.88$, ARI $0.67$), above the
+  supervised ceiling. Same data, same capacity, same $2$-D bottleneck---only the
+  objective differs.}
+  \label{fig:jepa}
+\end{figure}
+
+The predictive objective recovers the opponent's strategy where reconstruction
+cannot (Table~\ref{tab:jepa}, Figure~\ref{fig:jepa})---and, notably, its smooth
+$2$-D latent is \emph{more} linearly separable than the raw window a supervised
+classifier sees. This is LeCun's JEPA principle (predict in representation space,
+not input space; cf.\ V-JEPA~2) applied to opponent modeling: the part of an
+opponent's behavior worth encoding is the part you can \emph{predict}, and a
+generative encoder squanders capacity on the rest. It is also the cleaner Part~1
+for the proposal: no labels, and a latent that drops straight into the belief and
+the planner.
+
+
+%% ==================================================================
 \section{Relation to the proposal and next steps}
 
 This study validates the proposal's loop end to end on its first domain. Part~1:
