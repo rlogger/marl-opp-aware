@@ -53,9 +53,14 @@ $47\%$, exactly the failure uncertainty-aware modeling is meant to prevent; and
 yields the most robust best response, $+61\%$ over an opponent-blind baseline and
 \emph{above an oracle} \blue{blue} policy told the true strategy. An ablation that
 flattens the belief shows the inference, not the lookahead, is the active
-ingredient ($+40\%$). The study validates the proposal's Part~1/Part~2 loop on
-its first target domain and motivates the full variational-encoder, CPL, and
-MuZero-style instantiation.
+ingredient ($+40\%$). Finally, we replace the supervised encoder with a
+self-supervised \emph{predictive} one (JEPA): it recovers the opponent's strategy
+far better than a generative VAE ($0.88$ vs.\ $0.54$ probe; $0.67$ vs.\ $0.14$
+ARI) and from about half the observation, and---driving the planner with a
+\emph{label-free} belief---it matches the supervised pipeline ($4.08$ vs.\ $4.31$
+captures) with no opponent-strategy labels at all. The study validates the
+proposal's Part~1/Part~2 loop on its first target domain and shows a predictive,
+label-free encoder is the stronger Part~1.
 \end{abstract}
 
 
@@ -289,9 +294,50 @@ $2$-D latent is \emph{more} linearly separable than the raw window a supervised
 classifier sees. This is LeCun's JEPA principle (predict in representation space,
 not input space; cf.\ V-JEPA~2) applied to opponent modeling: the part of an
 opponent's behavior worth encoding is the part you can \emph{predict}, and a
-generative encoder squanders capacity on the rest. It is also the cleaner Part~1
-for the proposal: no labels, and a latent that drops straight into the belief and
-the planner.
+generative encoder squanders capacity on the rest.
+
+\paragraph{An anytime opponent encoder.}
+Because it predicts where the prey is heading instead of waiting for it to
+arrive, the JEPA encoder also reads the strategy from \emph{fewer} observed
+steps. Sweeping the observation budget $k$ (observe the first $k$ steps of the
+window, mask and predict the future), the predictive encoder dominates the
+generative one at every $k$ (Figure~\ref{fig:jepaspeed}): at $k{=}11$ steps it
+already recovers the intent at $0.80$---what the VAE needs $k{=}20$ for. A planner
+can therefore commit roughly twice as soon.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../plots/jepa_inference_speed.png}
+  \caption{Intent recovery vs.\ steps of the opponent observed (3-seed mean
+  $\pm$ std). The predictive (JEPA) encoder reads the strategy from about half the
+  observation of the generative (VAE) one, tracking just under the supervised
+  ceiling.}
+  \label{fig:jepaspeed}
+\end{figure}
+
+\paragraph{It closes the loop, without labels.}
+Finally we drive the Part~2 planner with a \emph{fully self-supervised} belief: a
+JEPA encoder, a readout $z \mapsto$ predicted arrival position (trained on the
+prey's own future positions---no intent labels), and a posterior over the four
+\emph{known} corners, $b(c) \propto \exp(-\lVert \mathrm{readout}(z) - c_g\rVert^2/\sigma)$.
+This drops into the planner's belief slot unchanged. With no opponent-strategy
+labels anywhere, it reaches $\mathbf{4.08 \pm 0.57}$ captures/episode
+(Figure~\ref{fig:jepaplan})---matching the supervised-belief planner
+($4.31$, overlapping error bars) and above the oracle reactive predator
+($4.05$). The labels the rest of the pipeline used are not, in fact, necessary:
+a predictive self-supervised opponent model recovers the same best response.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.7\textwidth]{../plots/part2_jepa_planner.png}
+  \caption{Label-free opponent-aware planning. A self-supervised JEPA belief
+  drives the planner to the supervised result without any intent labels.}
+  \label{fig:jepaplan}
+\end{figure}
+
+This is the cleaner, more general Part~1 for the proposal: no labels, a latent
+that recovers strategy faster and drops straight into the belief and the planner,
+and a downstream best response that matches the supervised pipeline.
 
 
 %% ==================================================================
