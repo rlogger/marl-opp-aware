@@ -341,6 +341,87 @@ and a downstream best response that matches the supervised pipeline.
 
 
 %% ==================================================================
+\section{Related work}
+
+\paragraph{Opponent modeling and theory of mind.}
+Modeling other agents is a long-standing problem~\cite{albrecht2018}. Deep
+approaches range from encoding opponent observations into a value
+network~\cite{he2016} to meta-learning a prior that infers an agent's goals from
+behavior alone~\cite{rabinowitz2018}, with recursive variants that reason about
+what the opponent believes about us~\cite{wen2019}. Closest to our Part~1 is the
+unsupervised opponent encoder of Papoudakis and Albrecht~\cite{papoudakis2019vae},
+which models opponents with a variational autoencoder from local information.
+Our predictive encoder targets exactly that setting and improves on it: a VAE
+spends capacity reconstructing the prey's evasion noise, whereas a joint-embedding
+predictor keeps only what is predictable---the strategy (probe accuracy $0.88$ vs
+$0.54$, matching a supervised classifier). Reasoning about an \emph{uncertain}
+opponent type is studied for imperfect-information games~\cite{shen2019}; our
+belief-sharpness ablation sharpens the point---acting on a confident but wrong
+type ($-47\%$) is worse than ignoring type altogether.
+
+\paragraph{Non-stationarity and adaptive opponents.}
+When opponents adapt, the learning target moves~\cite{hernandezleal2017}.
+Meta-learning yields few-shot adaptation against changing
+opponents~\cite{alshedivat2018}, and online schemes detect and switch responses as
+the opponent type changes mid-interaction~\cite{everett2018}. Our prey draws a
+\emph{fixed} hidden intent per episode, so we study calibrated inference of a
+static type rather than tracking an adaptive one; making the prey switch or
+best-respond, and tracking it online, is the natural escalation and the regime in
+which recursive reasoning~\cite{wen2019} and meta-adaptation~\cite{alshedivat2018}
+become the right comparisons.
+
+\paragraph{Model-based MARL and planning with a learned model.}
+Planning with a learned model attains strong sample efficiency in single-agent
+RL~\cite{schrittwieser2020,ye2021,hafner2020}, and recent work lifts this to
+multiple agents---Dreamer-style world models~\cite{egorov2022}, multi-agent tree
+search over a learned model~\cite{liu2024}, and opponent-aware model-based methods
+that imagine improving opponent policies~\cite{yu2021} or build per-opponent
+rollout models with sample-complexity guarantees~\cite{zhang2021}. Our Part~2/3
+planner is in this family but deliberately minimal: rather than learn an opponent
+\emph{policy} or \emph{dynamics} model, we infer a low-dimensional \emph{intent}
+belief and plan against it. We have not yet benchmarked against
+\cite{liu2024,egorov2022,yu2021}; doing so---measuring episodes-to-recover against
+a novel prey under limited interaction---is the experiment that would directly test
+whether an explicit intent belief is more sample-efficient than a learned opponent
+model, the central hypothesis of the broader project.
+
+\paragraph{Self-predictive representations and JEPA.}
+Predicting one's own future latent state via an EMA target encoder and a learned
+transition model is a powerful auxiliary for sample-efficient
+RL~\cite{schwarzer2021}, unified theoretically as self-predictive
+abstraction~\cite{ni2024}; the joint-embedding predictive architecture applies the
+same non-generative principle to images~\cite{assran2023} and, recently, to
+trajectories~\cite{li2024tjepa}. Our contribution is to transplant this machinery
+from \emph{self}-modeling to \emph{opponent} modeling: the JEPA encoder predicts
+the representation of the opponent's future motion, which we show is a better
+strategy code than a reconstructive VAE and yields a label-free belief that matches
+the supervised pipeline.
+
+\paragraph{Symmetry and the strategy-versus-position gap.}
+A representation that organizes by \emph{where} an agent goes rather than by its
+\emph{strategy} is exactly what equivariant networks address: an MDP homomorphic
+network is equivariant to symmetries of the state-action
+space~\cite{vanderpol2020}, and its multi-agent form notes that ``rotating the
+state globally results in a permutation of the optimal joint
+policy''~\cite{vanderpol2021}. Euclidean-equivariant actor-critics~\cite{chen2023}
+and equivariant learned models~\cite{equivmuzero2023} extend this to cooperative
+control and planning. Our arena's four corners carry a dihedral ($D_4$) symmetry,
+so a $D_4$-equivariant JEPA encoder---whose strategy latent is invariant to which
+corner is targeted---is the principled route to a representation that captures
+strategy independently of position; we flag this as the highest-leverage open
+direction. When latent abstraction discards control-relevant
+detail~\cite{terver2025}, planning through it can fail, which accounts for our
+negative result with a JEPA world model.
+
+\paragraph{Belief-space planning.}
+Planning over a belief about partially observed agents is classical in interactive
+POMDPs, including differentiable instantiations~\cite{han2019}, and modern systems
+online-update a latent intent belief to feed a tree-search
+planner~\cite{huang2024}. Our pipeline has the same shape---infer a belief, then
+plan---at small scale, in the JaxMARL~\cite{jaxmarl} reimplementation of the MPE
+predator--prey task~\cite{lowe2017}, with the distinguishing features of a
+predictive, label-free opponent encoder.
+
 \section{Relation to the proposal and next steps}
 
 This study validates the proposal's loop end to end on its first domain. Part~1:
@@ -357,5 +438,115 @@ $q_\phi(\zlat\mid\tred)$ and a latent-conditioned $\pi^{\mathrm{red}}_\psi$
 counterfactuals), and the simulator rollout with a MuZero-style learned model and
 a strategy-conditioned value $v^{\mathrm{blue}}(s,\zlat)$, then close the
 co-training loop so \red{red} and \blue{blue} adapt to each other.
+
+\begin{thebibliography}{99}
+\small
+
+\bibitem{albrecht2018} S.~V. Albrecht and P.~Stone. Autonomous agents modelling
+other agents: A comprehensive survey and open problems. \emph{Artificial
+Intelligence}, 258:66--95, 2018.
+
+\bibitem{alshedivat2018} M.~Al-Shedivat, T.~Bansal, Y.~Burda, I.~Sutskever,
+I.~Mordatch, and P.~Abbeel. Continuous adaptation via meta-learning in
+nonstationary and competitive environments. \emph{ICLR}, 2018.
+
+\bibitem{assran2023} M.~Assran, Q.~Duval, I.~Misra, P.~Bojanowski, P.~Vincent,
+M.~Rabbat, Y.~LeCun, and N.~Ballas. Self-supervised learning from images with a
+joint-embedding predictive architecture. \emph{CVPR}, 2023.
+
+\bibitem{chen2023} D.~Chen and Q.~Zhang. E(3)-equivariant actor-critic methods for
+cooperative multi-agent reinforcement learning. \emph{ICML}, 2023.
+
+\bibitem{equivmuzero2023} A.~Deac, T.~Weber, and G.~Papamakarios. Equivariant
+MuZero. \emph{Transactions on Machine Learning Research}, 2023.
+
+\bibitem{egorov2022} V.~Egorov and A.~Shpilman. Scalable multi-agent model-based
+reinforcement learning. \emph{AAMAS}, 2022.
+
+\bibitem{everett2018} R.~Everett and S.~Roberts. Learning against non-stationary
+agents with opponent modelling and deep reinforcement learning. \emph{AAAI Spring
+Symposia}, 2018.
+
+\bibitem{hafner2020} D.~Hafner, T.~Lillicrap, J.~Ba, and M.~Norouzi. Dream to
+control: Learning behaviors by latent imagination. \emph{ICLR}, 2020.
+
+\bibitem{han2019} Y.~Han and P.~Gmytrasiewicz. IPOMDP-Net: A deep neural network
+for partially observable multi-agent planning using interactive POMDPs.
+\emph{AAAI}, 2019.
+
+\bibitem{he2016} H.~He and J.~Boyd-Graber. Opponent modeling in deep reinforcement
+learning. \emph{ICML}, 2016.
+
+\bibitem{hernandezleal2017} P.~Hernandez-Leal, M.~Kaisers, T.~Baarslag, and
+E.~Munoz de Cote. A survey of learning in multiagent environments: Dealing with
+non-stationarity. \emph{arXiv:1707.09183}, 2017.
+
+\bibitem{huang2024} Z.~Huang, C.~Tang, C.~Lv, M.~Tomizuka, and W.~Zhan. Learning
+online belief prediction for efficient POMDP planning in autonomous driving.
+\emph{IEEE Robotics and Automation Letters}, 2024.
+
+\bibitem{li2024tjepa} L.~Li, H.~Xue, Y.~Song, and F.~D. Salim. T-JEPA: A
+joint-embedding predictive architecture for trajectory similarity computation.
+\emph{ACM SIGSPATIAL}, 2024.
+
+\bibitem{liu2024} Q.~Liu, J.~Ye, X.~Ma, J.~Yang, B.~Liang, and C.~Zhang. Efficient
+multi-agent reinforcement learning by planning. \emph{ICLR}, 2024.
+
+\bibitem{lowe2017} R.~Lowe, Y.~Wu, A.~Tamar, J.~Harb, P.~Abbeel, and I.~Mordatch.
+Multi-agent actor-critic for mixed cooperative-competitive environments.
+\emph{NeurIPS}, 2017.
+
+\bibitem{ni2024} T.~Ni, B.~Eysenbach, E.~Seyedsalehi, M.~Ma, C.~Gehring,
+A.~Mahajan, and P.-L. Bacon. Bridging state and history representations:
+Understanding self-predictive RL. \emph{ICLR}, 2024.
+
+\bibitem{papoudakis2019vae} G.~Papoudakis and S.~V. Albrecht. Variational
+autoencoders for opponent modeling in multi-agent systems.
+\emph{arXiv:2001.10829}, 2019.
+
+\bibitem{vanderpol2020} E.~van der Pol, D.~E. Worrall, H.~van Hoof, F.~Oliehoek,
+and M.~Welling. MDP homomorphic networks: Group symmetries in reinforcement
+learning. \emph{NeurIPS}, 2020.
+
+\bibitem{vanderpol2021} E.~van der Pol, H.~van Hoof, F.~Oliehoek, and M.~Welling.
+Multi-agent MDP homomorphic networks. \emph{ICLR}, 2021.
+
+\bibitem{rabinowitz2018} N.~C. Rabinowitz, F.~Perbet, H.~F. Song, C.~Zhang,
+S.~M.~A. Eslami, and M.~Botvinick. Machine theory of mind. \emph{ICML}, 2018.
+
+\bibitem{jaxmarl} A.~Rutherford, B.~Ellis, M.~Gallici, et~al. JaxMARL: Multi-agent
+RL environments and algorithms in JAX. \emph{arXiv:2311.10090}, 2023.
+
+\bibitem{schrittwieser2020} J.~Schrittwieser, I.~Antonoglou, T.~Hubert,
+K.~Simonyan, L.~Sifre, S.~Schmitt, A.~Guez, E.~Lockhart, D.~Hassabis, T.~Graepel,
+T.~Lillicrap, and D.~Silver. Mastering Atari, Go, chess and shogi by planning with
+a learned model. \emph{Nature}, 588:604--609, 2020.
+
+\bibitem{schwarzer2021} M.~Schwarzer, A.~Anand, R.~Goel, R.~D. Hjelm, A.~Courville,
+and P.~Bachman. Data-efficient reinforcement learning with self-predictive
+representations. \emph{ICLR}, 2021.
+
+\bibitem{shen2019} M.~Shen and J.~P. How. Robust opponent modeling via adversarial
+ensemble reinforcement learning in asymmetric imperfect-information games.
+\emph{arXiv:1909.08735}, 2019.
+
+\bibitem{terver2025} B.~Terver, T.-Y. Yang, J.~Ponce, A.~Bardes, and Y.~LeCun.
+What drives success in physical planning with joint-embedding predictive world
+models? \emph{arXiv:2512.24497}, 2025.
+
+\bibitem{wen2019} Y.~Wen, Y.~Yang, R.~Luo, J.~Wang, and W.~Pan. Probabilistic
+recursive reasoning for multi-agent reinforcement learning. \emph{ICLR}, 2019.
+
+\bibitem{ye2021} W.~Ye, S.~Liu, T.~Kurutach, P.~Abbeel, and Y.~Gao. Mastering
+Atari games with limited data. \emph{NeurIPS}, 2021.
+
+\bibitem{yu2021} X.~Yu, J.~Jiang, W.~Zhang, H.~Jiang, and Z.~Lu. Model-based
+opponent modeling. \emph{NeurIPS}, 2022.
+
+\bibitem{zhang2021} W.~Zhang, X.~Wang, J.~Shen, and M.~Zhou. Model-based
+multi-agent policy optimization with adaptive opponent-wise rollouts. \emph{IJCAI},
+2021.
+
+\end{thebibliography}
 
 \end{document}
