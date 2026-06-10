@@ -150,7 +150,8 @@ This is your centerpiece slide. Each row is designed to isolate one effect.
 |-----------------|:-----------:|:--------:|------------------|
 | confident-but-wrong (point estimate) | **1.42** | **−47%** | acting on a wrong guess *hurts* |
 | opponent-blind (no intent) | **2.68** | — | the baseline |
-| reactive, inferred belief | 2.82 | +5% | reacting to the belief barely helps |
+| reactive, hard-inferred intent (@k=8) | 2.56 | −5% | even an honest one-shot hard guess *loses* — the soft face of the −47% lesson |
+| reactive belief (uncertainty-aware) | 2.82 | +5% | reacting to the belief barely helps |
 | planner, **flat** belief (ablation) | 3.07 | +15% | lookahead alone, no opponent info |
 | oracle, true intent (reactive) | 4.05 | +51% | the *value* of knowing the strategy |
 | **planner, inferred belief (Part 1+2)** | **4.31** | **+61%** | the full method |

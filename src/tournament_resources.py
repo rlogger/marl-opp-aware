@@ -177,7 +177,9 @@ def run_cell(env_base, test_env, pred_sel, prey_sel,
 def summarize(infos, env, teams):
     """Per-team mean return over completed episodes.
 
-    captures_per_ep = pred_return / 10 (each capture gives predator +10).
+    captures_per_ep = pred_return / (10 * num_agents): each capture pays the
+    (shared) predator reward +10, and MPELogWrapper scales logged returns by
+    num_agents, so the num_agents factor must be divided back out.
     In the resource env, prey_return reflects both capture penalties (-10)
     and resource bonuses (+5), so it is not simply -pred_return.
     """
@@ -189,7 +191,7 @@ def summarize(infos, env, teams):
                          infos["returned_episode_returns"][..., idxs],
                          jnp.nan)
         out[f"{t}_return"] = float(jnp.nanmean(rets))
-    out["captures_per_ep"] = out["pred_return"] / 10.0
+    out["captures_per_ep"] = out["pred_return"] / (10.0 * env.num_agents)
     return out
 
 

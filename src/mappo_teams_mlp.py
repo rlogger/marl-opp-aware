@@ -16,6 +16,7 @@ Run:
 import os
 import copy
 import time
+import zlib
 from typing import Any, Dict, List, NamedTuple
 
 import jax
@@ -330,7 +331,9 @@ def make_train(config, env):
                         _update_mb, (actor_state, critic_state), starts)
                     return (actor_state, critic_state, rng), loss_info
 
-                rng_team = jax.random.fold_in(rng, hash(t) & 0xFFFFFFFF)
+                # crc32, not hash(): Python string hashing is salted per process
+                # (PYTHONHASHSEED), which made runs non-reproducible.
+                rng_team = jax.random.fold_in(rng, zlib.crc32(t.encode()))
                 (actor_state, critic_state, _), loss_info = jax.lax.scan(
                     _ppo_epoch,
                     (actor_state, critic_state, rng_team),

@@ -21,7 +21,7 @@ def test_eval_points(y):
     """Test metrics are step-held between evals; return just the (x, y) where value changes."""
     y = np.asarray(y)
     if y.ndim == 2:
-        y = y[0]
+        y = y.mean(0)   # average over seeds (was seed 0 only)
     dy = np.diff(y, prepend=y[0] - 1)
     idx = np.where(np.abs(dy) > 1e-9)[0]
     if len(idx) == 0:

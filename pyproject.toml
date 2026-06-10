@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marl-opp-aware"
+version = "0.1.0"
+description = "Opponent-strategy latent encoders (VAE / JEPA), belief-conditioned planning, and latent-conditioned BC for the predator-prey-resources MARL testbed."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "jax",
+    "flax",
+    "optax",
+    "scikit-learn",
+    "matplotlib",
+]
+
+[project.scripts]
+mopa-latent-resources = "mopa.experiments.latent_resources:main"
+mopa-bc-latent = "mopa.experiments.bc_latent:main"
+
+[tool.setuptools.packages.find]
+include = ["mopa*"]

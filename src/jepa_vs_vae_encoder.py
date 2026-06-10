@@ -193,28 +193,46 @@ def main():
     # supervised ceiling: MLP classifier on the raw context window
     sup, _, _, _ = PE.train_encoder_at_k(pos, intent, CTX[1])
 
-    print("training VAE (generative)...");  vae = train_vae(Xc, intent, jax.random.PRNGKey(0))
-    print("training JEPA (predictive)..."); jepa = train_jepa(Xc, Xt, intent, jax.random.PRNGKey(0))
-    vp, va = vae[-1][2], vae[-1][3]
-    jp, ja = jepa[-1][2], jepa[-1][3]
+    # 3 encoder seeds (matching jepa_inference_speed.py): the headline numbers
+    # are means; the figures/GIF use seed 0's latent.
+    ENC_SEEDS = [0, 1, 2]
+    vps, vas, jps, jas = [], [], [], []
+    vae = jepa = None
+    for s in ENC_SEEDS:
+        print(f"training VAE (generative), seed {s}...")
+        v = train_vae(Xc, intent, jax.random.PRNGKey(s))
+        print(f"training JEPA (predictive), seed {s}...")
+        j = train_jepa(Xc, Xt, intent, jax.random.PRNGKey(s))
+        vps.append(v[-1][2]); vas.append(v[-1][3])
+        jps.append(j[-1][2]); jas.append(j[-1][3])
+        if s == 0:
+            vae, jepa = v, j
+    vp, va = float(np.mean(vps)), float(np.mean(vas))
+    jp, ja = float(np.mean(jps)), float(np.mean(jas))
     print(f"\n  supervised ceiling (probe): {sup:.2f}   chance 0.25")
-    print(f"  VAE  (generative) : probe {vp:.2f}  ARI {va:.2f}")
-    print(f"  JEPA (predictive) : probe {jp:.2f}  ARI {ja:.2f}")
+    print(f"  VAE  (generative) : probe {vp:.2f}+/-{np.std(vps):.2f}  "
+          f"ARI {va:.2f}+/-{np.std(vas):.2f}")
+    print(f"  JEPA (predictive) : probe {jp:.2f}+/-{np.std(jps):.2f}  "
+          f"ARI {ja:.2f}+/-{np.std(jas):.2f}")
 
     np.savez(os.path.join(LOGDIR, "jepa_vs_vae.npz"),
              sup=sup, vae_probe=vp, vae_ari=va, jepa_probe=jp, jepa_ari=ja,
+             vae_probe_std=np.std(vps), vae_ari_std=np.std(vas),
+             jepa_probe_std=np.std(jps), jepa_ari_std=np.std(jas),
+             vae_probe_all=np.asarray(vps), jepa_probe_all=np.asarray(jps),
+             vae_ari_all=np.asarray(vas), jepa_ari_all=np.asarray(jas),
              vae_z=vae[-1][1], jepa_z=jepa[-1][1], intent=intent)
 
     # ---- static comparison figure ---- #
     fig, ax = plt.subplots(1, 3, figsize=(15, 4.6))
-    for a, (name, snap, sub) in zip(ax[:2],
-            [("VAE  (generative — reconstructs the trajectory)", vae, "reconstruction"),
-             ("JEPA  (predictive — predicts the future representation)", jepa, "prediction")]):
+    for a, (name, snap, mp, ma) in zip(ax[:2],
+            [("VAE  (generative — reconstructs the trajectory)", vae, vp, va),
+             ("JEPA  (predictive — predicts the future representation)", jepa, jp, ja)]):
         z = snap[-1][1]
         for k in range(K):
             m = intent == k
             a.scatter(z[m, 0], z[m, 1], s=10, alpha=0.6, c=INT_COL[k], label=f"intent {k}")
-        a.set_title(f"{name}\nprobe {snap[-1][2]:.2f}   ARI {snap[-1][3]:.2f}", fontsize=10.5)
+        a.set_title(f"{name}\nprobe {mp:.2f}   ARI {ma:.2f}   (3 seeds)", fontsize=10.5)
         a.set_xlabel("latent dim 1"); a.set_ylabel("latent dim 2"); a.legend(fontsize=7)
     b = ax[2]
     labels = ["VAE\nprobe", "JEPA\nprobe", "VAE\nARI", "JEPA\nARI"]

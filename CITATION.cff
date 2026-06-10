@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this code or results, please cite it as below."
+title: "Adaptive Opponent Modeling for Adversarial Co-Training in Multi-Agent Reinforcement Learning"
+authors:
+  - family-names: "Singh"
+    given-names: "Rajdeep"
+    affiliation: "University of Southern California"
+version: 0.1.0
+date-released: 2026-06-10
+url: "https://138-68-61-233.sslip.io"
+repository-code: "https://github.com/rlogger/marl-opp-aware"
+license: MIT
+keywords:
+  - multi-agent reinforcement learning
+  - opponent modeling
+  - joint-embedding predictive architecture
+  - JEPA
+  - theory of mind
+  - belief-space planning
+  - world models
+  - self-supervised learning
+  - predator-prey
+  - JAX
+  - JaxMARL
+abstract: >-
+  A controlled study of uncertainty-aware opponent modeling in a hidden-intent
+  predator-prey game (JAX/JaxMARL). A belief over the opponent's latent strategy
+  is inferred from its motion and drives a belief-conditioned planner (+61% over
+  an opponent-blind baseline, above an oracle handed the true strategy); a
+  confident-but-wrong point estimate is worse than no model (-47%). A predictive
+  (JEPA) opponent encoder beats the VAE-for-opponent-modeling baseline (probe
+  0.88 vs 0.54), reads the strategy from half the observation steps, and yields
+  a label-free belief matching the supervised pipeline, with an honest negative
+  for JEPA as a planning world model.

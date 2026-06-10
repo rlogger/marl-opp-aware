@@ -25,7 +25,7 @@ def test_points(arr):
     """Test metrics are step-held between evals — return (x, y) at value changes."""
     y = np.asarray(arr)
     if y.ndim == 2:
-        y = y[0]
+        y = y.mean(0)   # average over seeds (was seed 0 only)
     dy = np.diff(y, prepend=y[0] - 1)
     idx = np.where(np.abs(dy) > 1e-9)[0]
     if len(idx) == 0:
@@ -36,7 +36,7 @@ def test_points(arr):
 def smooth(y, w=31):
     y = np.asarray(y)
     if y.ndim == 2:
-        y = y[0]
+        y = y.mean(0)   # average over seeds (was seed 0 only)
     if len(y) < w:
         return y
     k = np.ones(w) / w

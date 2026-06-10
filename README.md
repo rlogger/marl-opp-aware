@@ -1,5 +1,9 @@
 # Adaptive Opponent Modeling for Adversarial Co-Training in MARL
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![JAX](https://img.shields.io/badge/JAX-0.4-blue)](https://github.com/jax-ml/jax)
+[![Site](https://img.shields.io/badge/results-site-0d6e7a)](https://138-68-61-233.sslip.io)
+
 In adversarial co-training, each team faces an opponent whose strategy varies and
 adapts; a best response that overfits to one opponent loses to strategies it has
 not recently seen. This repo pursues the proposal's remedy — model the opponent's
@@ -20,17 +24,40 @@ Everything is JAX (JaxMARL / MPE), runs on a laptop CPU, 3 seeds throughout.
 | `blue` predator                       | captures / ep | vs. opponent-blind |
 |---------------------------------------|:-------------:|:------------------:|
 | opponent-blind (no strategy info)     | 2.68          | —                  |
-| reactive, inferred belief             | 2.82          | +5%                |
+| reactive, hard-inferred intent (@k=8) | 2.56          | −5%                |
+| reactive belief (uncertainty-aware)   | 2.82          | +5%                |
 | planner, flat belief (ablation)       | 3.07          | +15%               |
 | oracle, true strategy (reactive)      | 4.05          | +51%               |
 | **planner, inferred belief (Part 1+2)** | **4.31**    | **+61%**           |
 
 The opponent's latent strategy is inferable from its behavior (encoder accuracy
 0.37 → 0.97 over 3 → 25 observed steps); a point-estimate model is brittle (−47%
-fed a wrong guess); and **planning against the uncertainty-aware opponent model is
+fed a wrong guess, and even an honestly *inferred* hard guess at a fixed step
+loses, −5%); and **planning against the uncertainty-aware opponent model is
 the most robust response** — above even an oracle handed the true strategy. The
 flat-belief ablation isolates the opponent inference as the source of the gain
 (+40%).
+
+## The `mopa` package (new experiments live here)
+
+The reusable core is packaged as `mopa/` (installable: `pip install -e .`), and
+the current meeting deliverables run as modules:
+
+```bash
+# VAE vs JEPA strategy latents on circle-vs-corners (scatter + context sweep)
+python -m mopa.experiments.latent_resources --algorithm mappo --team prey
+python -m mopa.experiments.latent_resources --algorithm mappo --team pred
+
+# predator behaviour cloning: pi(a|s) vs pi(a|s,z) (episode-level split)
+python -m mopa.experiments.bc_latent --algorithm mappo
+```
+
+`mopa.data` rolls out the placement specialists in their native envs with
+ABSOLUTE coordinates (the placement signal is *where* the prey routes; the old
+init-conditioned featurisation removed it, which is why exp4/exp5's single-
+trajectory probes sat at chance). `mopa.encoders` is the validated VAE/JEPA
+pair with multi-seed evaluation; `mopa.bc` is leakage-safe BC (episode-level
+splits, conditioning never sees past the predicted step).
 
 ## Repository map
 
@@ -102,3 +129,23 @@ discrete actions, 25-step episodes, two fixed obstacles). Predators are slowed
 hidden intent `z ∈ {0,1,2,3}` (a corner it is rewarded for haunting); the prey
 sees `z`, the predators do not. MAPPO: 32 envs × 128-step rollouts, γ=0.99,
 λ=0.95, clip 0.2, 4 epochs, hidden 128.
+
+## Citing
+
+If you use this code or results, please cite (see `CITATION.cff`; a Zenodo DOI
+is minted per release):
+
+```bibtex
+@software{singh2026oppaware,
+  author  = {Singh, Rajdeep},
+  title   = {Adaptive Opponent Modeling for Adversarial Co-Training in
+             Multi-Agent Reinforcement Learning},
+  year    = {2026},
+  url     = {https://github.com/rlogger/marl-opp-aware},
+  version = {0.1.0}
+}
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).

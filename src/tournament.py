@@ -100,8 +100,10 @@ def summarize(infos, env, teams):
         rets = jnp.where(mask, infos["returned_episode_returns"][..., idxs], jnp.nan)
         mean_ret = float(jnp.nanmean(rets))
         out[f"{t}_return"] = mean_ret
-    # captures/ep = pred_return / 10
-    out["captures_per_ep"] = out["pred_return"] / 10.0
+    # captures/ep: MPELogWrapper scales logged returns by num_agents, and each
+    # capture pays the (shared) predator reward +10, so divide by 10*num_agents
+    # to recover true captures/episode (otherwise inflated num_agents-fold).
+    out["captures_per_ep"] = out["pred_return"] / (10.0 * env.num_agents)
     return out
 
 

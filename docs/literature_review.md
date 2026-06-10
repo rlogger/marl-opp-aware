@@ -97,6 +97,35 @@ variable. Stochastic MuZero's chance-node machinery is one principled way to fol
 the intent belief into a learned-model planner (an alternative to our explicit
 softmax belief).
 
+**Huang et al. 2024 — HOP: Efficient Adaptation in Mixed-Motive Environments via Hierarchical Opponent Modeling and Planning.** *ICML; arXiv:2406.08002.*
+**The closest full-system competitor to our entire pipeline.** Maintains a Bayesian
+belief over other agents' *goals* (updated both within and across episodes), learns
+goal-conditioned policies, and plans with MCTS; reports few-shot adaptation to
+unseen opponents in mixed-motive games.
+→ for us: **must-cite and must-position.** It is "infer a belief over opponent
+intent, then plan" — our Part 1 + Part 2 loop — without a predictive/JEPA encoder
+or the calibrated-uncertainty ablations. Its within-episode belief updates also
+directly inform our proposed switching-intent experiment.
+
+**Zhang et al. 2024 — MARIE: Decentralized Transformers with Centralized Aggregation are Sample-Efficient Multi-Agent World Models.** *TMLR; arXiv:2406.15836.*
+Transformer-token world model with Perceiver aggregation; supersedes MAMBA on
+sample efficiency on SMAC/MAMuJoCo.
+→ for us: the bridge between Dreamer-style MAMBA and the 2025 transformer world
+models; updates the Gap-B baseline set.
+
+**Deihim et al. 2025 — MATWM: Transformer World Model for Sample-Efficient MARL.** *arXiv:2506.18537.*
+2025 SOTA on sample-efficient multi-agent world-model RL (near-optimal in ~50K
+interactions on SMAC/PettingZoo/MeltingPot), with a teammate-prediction module and
+prioritized replay specifically for non-stationarity from evolving agents.
+→ for us: **the modern model-based-MARL baseline** for the episodes-to-recover
+experiment; MAMBA (2022) and MAZero (2024) are now a generation behind it.
+
+**Schwartz, Kurniawati & Hutter 2023 — POTMMCP: Meta-Policy + Monte-Carlo Planning for Scalable Type-Based Reasoning.** *arXiv:2306.06067.*
+Maintains a belief over other agents' discrete *types* in a POMDP and drives MCTS
+with a meta-policy; scales type-based reasoning to ~10^14 states.
+→ for us: **our exact mechanism in classical form** — belief over discrete types →
+MC planning. The closest planning-side prior art; cite next to IPOMDP-Net.
+
 **Czechowski & Oliehoek 2020 — Decentralized MCTS via Learned Teammate Models.** *IJCAI; 22 cites; arXiv:2003.08727.*
 Decentralized online planning where each agent plans with MCTS using *learned
 models of teammates*; one-agent-at-a-time adaptation gives convergence guarantees.
@@ -143,6 +172,25 @@ sweep (confident-but-wrong is −47%, worse than blind) is a *cleaner demonstrat
 of why the posterior, not a point estimate, must drive action. Cite as the robust
 counterpart; differentiate on the calibrated-belief-into-planner mechanism.
 
+**Long et al. 2025 — Inverse Attention Agents for Multi-Agent Systems.** *ICLR; arXiv:2410.21794.*
+ToM via attention: attention weights explicitly represent attention to goals; an
+inverse-attention network infers other agents' goal-attention states from behavior
+and adapts the ego policy. Cooperative, competitive, and mixed settings.
+→ for us: the *current* ToM-inference data point (the rest of our ToM anchors are
+2016–2019); like ToMnet it stops at inference — no calibrated posterior into a
+planner — which is exactly our framing of where the novelty lies.
+
+**Odrowaz-Sypniewski et al. 2026 — Generalized Intention Modeling in MARL.** *arXiv:2605.31318 (Prorok lab, Cambridge).*
+Argues the "right" intent representation is task-dependent (next-action and
+future-state targets are both a-priori choices); learns a performance-driven
+*mixture* of intent representations plus a reward-predictive intent embedding
+(InfoNCE, MI with the ego agent's future returns). Baselines include LIAM, OMG,
+MeLIBA.
+→ for us: **the most on-point new paper for our diagnosed gap.** An MI-with-return
+intent would *naturally* discard map-position nuisance (position per se doesn't
+predict the predator's return; strategy does). A learned alternative to the
+equivariant route and a must-benchmark for the JEPA encoder.
+
 **Davies et al. 2020 — Learning to Model Opponent Learning (LeMOL).** *AAAI student abstract; 7 cites; arXiv:2006.03923.*
 Models not the opponent's policy but the opponent's *learning process* (how the
 policy changes), to anticipate a moving target.
@@ -181,6 +229,14 @@ baselines against opponents that change.
 opponents under limited interaction"). The experiment to run: an *adaptive* prey,
 and show belief-conditioned planning gives few-shot adaptation comparable to
 meta-RL without the meta-training cost.
+
+**Ma et al. 2024 — Fast Peer Adaptation with Context-aware Exploration.** *ICML; arXiv:2402.02468.*
+A peer-identification reward makes the agent *actively explore to disambiguate*
+the peer's strategy when uncertain, then exploit when confident; evaluated on Kuhn
+Poker, PO-Overcooked, and a mixed Predator-Prey-W.
+→ for us: the modern anchor for Gap C (few-shot adaptation under limited
+interaction) and exactly the "move to disambiguate the intent" active-belief
+direction we flag as future work — on a predator-prey benchmark, no less.
 
 **Everett & Roberts 2018 — Learning Against Non-Stationary Agents with Opponent Modelling and Deep RL (SAM).** *AAAI Spring Symp; 31 cites.*
 Online *switching* opponent detection — recognize which opponent type you face and
@@ -225,6 +281,15 @@ generalization to unseen configurations.
 → for us: **the bridge between our two gaps** — symmetry + learned-model planning.
 If we ever revisit the Part-4 latent world model, making it equivariant is the
 principled fix for its poor OOD-action generalization.
+
+**McClellan et al. 2024 — E2GN2: Boosting Sample Efficiency and Generalization in MARL via Equivariance.** *NeurIPS; arXiv:2410.02581.*
+Equivariant graph networks (rotations, translations, AND reflections) applied to
+MARL, evaluated on **MPE** (our exact benchmark family) and SMACv2; 2–5×
+generalization gains. Documents that *naive* equivariance hurts early exploration
+and fixes it (E2GN2).
+→ for us: **the freshest, most on-point equivariance citation for Gap A** — and a
+must-know caveat: our proposed D₄-equivariant JEPA encoder will hit the same
+exploration pathology unless we adopt their fix.
 
 **Schwarzer et al. 2021 — SPR: Data-Efficient RL with Self-Predictive Representations.** *ICLR; 408 cites; arXiv:2007.05929.*
 Predict your *own* latent state k-steps ahead via an EMA target encoder + a learned
@@ -290,6 +355,15 @@ to compare our JEPA encoder against on the "separate the strategies" metric.
 
 ## 5. JEPA / self-predictive planning — when latent planning helps
 
+**Assran et al. 2025 — V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning.** *arXiv:2506.09985 (Meta FAIR).*
+The canonical recent JEPA-for-planning result: V-JEPA 2-AC is an
+*action-conditioned* JEPA latent world model that plans by energy minimization in
+representation space, deployed zero-shot on robot arms.
+→ for us: anchors the JEPA-planning lineage our thesis leans on, and sharpens the
+Part-4 negative: V-JEPA 2-AC succeeds at latent planning precisely because its
+predictor is **action-conditioned**, whereas our action-free JEPA latent discarded
+the dynamics detail the planner's OOD queries needed.
+
 **Terver et al. 2025 — What Drives Success in Physical Planning with Joint-Embedding Predictive World Models?** *arXiv:2512.24497; 16 cites.*
 Characterizes *when* planning in a JEPA world model's latent space beats planning in
 input space — abstracting "irrelevant detail" helps only if the discarded detail is
@@ -300,6 +374,9 @@ queries actually need. Reframe the negative as a *characterized* phenomenon
 (encoder wants to discard opponent noise; world model must keep dynamics) and cite
 Terver as the general account.
 
+<!-- Both entries below were independently re-verified against the Semantic
+Scholar API on 2026-06-05 (exact title match on the arXiv IDs); an earlier
+web-search pass could not find them, so keep these IDs pinned. -->
 **Maes et al. 2026 — LeWorldModel: Stable End-to-End JEPA world model.** *arXiv:2603.19312; 40 cites.*
 Recent recipe for stable end-to-end JEPA world-model training (the instability we
 hit in Part 4 directly).
@@ -365,12 +442,23 @@ published fix is **equivariance** (Multi-Agent MDP Homomorphic Networks, van der
 - **Test:** probe accuracy on a *held-out rotation* of the arena. The VAE and our
   current JEPA should drop; the equivariant/contrastive encoder should hold. That
   delta is the cleanest possible evidence we closed the gap.
+- **Caveats from the 2024-2026 literature:** naive equivariance hurts early
+  exploration (E2GN2, NeurIPS 2024 — adopt their fix); the arena is only
+  *approximately* symmetric once obstacles are placed, so partial/learned-symmetry
+  methods may be needed; and an MI-with-ego-return intent objective (Generalized
+  Intention Modeling, 2026) is a *learned* alternative that would discard position
+  nuisance without an architectural prior — benchmark against it.
 
 ### Gap B: no model-based-MARL baseline is actually run
 We claim model-based relevance but have implemented none of the baselines the lab
 asked about. **Implement MAZero (Liu 2024) and/or MAMBA (Egorov 2022), and MBOM (Yu
 2021) / AORPO (Zhang 2021) as the opponent-aware model-based baselines** in
-`simple_tag_intent`.
+`simple_tag_intent`. *2024-2026 update:* the modern versions of this baseline set
+are the transformer world models **MARIE** (TMLR 2024) and **MATWM** (2025,
+near-optimal in ~50K interactions with a teammate-prediction module), and the
+belief+MCTS system **HOP** (ICML 2024) — HOP is the one that already couples
+goal-belief inference with planning, so it is both the closest competitor and the
+most informative head-to-head.
 - **Test (this is Ellen's hypothesis turned into a result):** under *limited
   interaction with a novel/adaptive prey*, measure episodes-to-recover. Prediction:
   MAZero/MAMBA must re-fit a world model (slow); our belief-conditioned planner
@@ -417,6 +505,10 @@ Everything is one 2D particle task. The lab already linked **JaxMARL / SMAX**
 opponent**, with two real deltas over published work — a **predictive (JEPA)
 opponent encoder** that beats the VAE-for-OM baseline (Papoudakis 2019) and a
 **label-free belief** that matches supervised — but we have **not yet** run the
-model-based-MARL baselines (MAZero/MAMBA/MBOM), made the opponent **adaptive**, or
-closed the **symmetry gap** (equivariance). Those three are the highest-leverage next
-steps, and the literature gives us the exact tools for each.*
+model-based-MARL baselines (the modern set: HOP / MATWM / MARIE, with MAZero/MAMBA/
+MBOM as the older anchors), made the opponent **adaptive** (Fast Peer Adaptation is
+the 2024 anchor), or closed the **symmetry gap** (equivariance; E2GN2 is the 2024
+tool, with its exploration caveat). Those three are the highest-leverage next
+steps, and the literature gives us the exact tools for each. HOP (ICML 2024) is the
+single closest published system — belief over goals + MCTS + few-shot adaptation —
+and the head-to-head we most need.*
