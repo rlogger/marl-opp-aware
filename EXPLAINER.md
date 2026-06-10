@@ -184,8 +184,8 @@ Same prey trajectories, same 2-D latent, no labels.
 
 | encoder | probe acc | unsup. ARI |
 |---------|:---------:|:----------:|
-| VAE (reconstruct) | 0.54 | 0.14 |
-| **JEPA (predict)** | **0.88** | **0.67** |
+| VAE (reconstruct) | 0.53±0.00 | 0.14±0.01 |
+| **JEPA (predict)** | **0.89±0.01** | **0.65±0.08** |
 | supervised classifier | 0.85 | — |
 
 > **Why predict > reconstruct here:** a prey trajectory is *mostly evasion noise plus
@@ -223,6 +223,47 @@ vs the state-space model's 0.07.
 > control-irrelevant.)
 
 ---
+
+## 6.5 The second axis: circle vs corners (the 6/5 meeting ask)
+
+The lab's other strategy axis: a prey trained with resources on a *circle* routes
+differently from one trained with resources in the *corners*. Three findings, all
+3-seed, 1,200 episodes (`mopa/experiments/latent_resources.py`):
+
+1. **A raw trajectory window carries no signal — for anyone.** A *supervised*
+   probe on absolute coordinates of a single episode is at chance (0.54). This is
+   a property of the data, not the encoder: one episode is dominated by evasion.
+   (This retroactively explains why exp4/exp5's single-trajectory probes failed.)
+2. **Occupancy carries it.** The same probe on an 8×8 histogram of *where the
+   prey spends time* reaches 0.71/0.88/0.93 over 25/50/100 steps. Featurization
+   gates this task.
+3. **Predict-vs-reconstruct has a boundary condition.** At 2-D latents JEPA beats
+   the VAE (0.63 vs 0.48 at k=50); at 4-D the VAE wins (0.81 vs 0.67) — because
+   occupancy histograms have *already* discarded the evasion noise, which was
+   exactly what JEPA's advantage came from. **Neither clusters unsupervised
+   (ARI ≈ 0)** — same as the lab's own exp5b VAE. The honest takeaway for the
+   meeting: the placement is a linearly decodable *direction* in the latent, not
+   two separated *modes*; getting modes is the open problem (return-relevant MI
+   objectives or equivariant/contrastive shaping are the candidate tools).
+
+Also: the predators' own occupancy is nearly uninformative (sup 0.64) — the
+*opponent* carries the signal, so "prey latent model first" was the right call.
+
+**And the BC test (π(a|s) vs π(a|s,z), watch episode 1 → predict episode 2,
+episode-level split):** conditioning on the *true* placement clearly helps
+(0.800 vs 0.776 held-out action accuracy — the hypothesized effect is real);
+conditioning on today's unsupervised latents doesn't (0.772) — *exactly* as the
+probe curve predicts, because one episode of observation gives those latents
+almost no signal (probe ≈ 0.51 at 25 steps). The oracle–baseline gap (+2.4
+points) is the prize a better opponent latent stands to capture.
+
+> **Say this if asked "where are the 2 clusters?":** "The 2-cluster goal turns
+> out to be harder than hoped — and that's a *finding*, not a failure. The signal
+> is provably in the features (supervised probe 0.93), and both encoders carry it
+> linearly, but no unsupervised objective we tested — ours or the earlier
+> occupancy-VAE — forms separated modes. That tells us the next step is shaping
+> the latent (contrastive, equivariant, or return-relevant MI), not more
+> capacity."
 
 ## 7. How the code is wired
 
@@ -276,7 +317,7 @@ by Ellen) is "multi-agent extensions of MuZero." Full annotated notes are in
 | baseline (real paper) | what it does | how we relate |
 |-----------------------|--------------|---------------|
 | **ToMnet** (Rabinowitz 2018) | meta-learns to infer agents' goals from behavior | inference itself is *established here* — not our novelty |
-| **VAE opponent model** (Papoudakis 2019) | unsupervised VAE opponent encoder | **the baseline we beat head-to-head** (JEPA 0.88 vs 0.54) |
+| **VAE opponent model** (Papoudakis 2019) | unsupervised VAE opponent encoder | **the baseline we beat head-to-head** (JEPA 0.89 vs 0.53, 3 seeds) |
 | **SPR** (Schwarzer 2021) | self-predictive reps for sample-efficient RL | the exact machinery of our JEPA encoder, applied to *self* not *opponent* |
 | **MBOM** (Yu 2021) | model-based OM; imagines opponent *policies* by recursion | closest paper to us; we infer a low-D *intent* instead |
 | **MuZero / MAZero** (Schrittwieser 2020; Liu 2024) | plan with a learned world model | we plan against an inferred *belief*, not a full learned model |
@@ -354,7 +395,7 @@ artifact.
 - **−47%** — a confident wrong guess (1.42); *why uncertainty matters*.
 - **+51%** — value of knowing the strategy (oracle 4.05 vs blind 2.68).
 - **0.37 → 0.97** — inference accuracy over 3 → 25 observed steps.
-- **0.88 vs 0.54** — JEPA vs VAE encoder probe; JEPA > supervised (0.85).
+- **0.89 vs 0.53** — JEPA vs VAE encoder probe (3 seeds); JEPA > supervised (0.85).
 - **~2×** — JEPA reads the strategy from half the steps (anytime).
 - **4.08, no labels** — JEPA-belief planner matches supervised (4.31).
 - **0.57** — JEPA world model (the honest negative; needs fidelity, not compression).

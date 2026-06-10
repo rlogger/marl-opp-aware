@@ -55,7 +55,7 @@ yields the most robust best response, $+61\%$ over an opponent-blind baseline an
 flattens the belief shows the inference, not the lookahead, is the active
 ingredient ($+40\%$). Finally, we replace the supervised encoder with a
 self-supervised \emph{predictive} one (JEPA): it recovers the opponent's strategy
-far better than a generative VAE ($0.88$ vs.\ $0.54$ probe; $0.67$ vs.\ $0.14$
+far better than a generative VAE ($0.89$ vs.\ $0.53$ probe; $0.65$ vs.\ $0.14$
 ARI) and from about half the observation, and---driving the planner with a
 \emph{label-free} belief---it matches the supervised pipeline ($4.08$ vs.\ $4.31$
 captures) with no opponent-strategy labels at all. The study validates the
@@ -265,14 +265,15 @@ structure (where the prey is heading $=$ its strategy) and discards the noise.
 \begin{table}[h]
   \centering
   \caption{Unsupervised recovery of the opponent's strategy from a $2$-D latent
-  (4-way; probe chance $0.25$). The predictive encoder wins on both metrics and
-  beats a supervised classifier trained on the raw window.}\label{tab:jepa}
+  (4-way; probe chance $0.25$; mean $\pm$ std over $3$ encoder seeds). The
+  predictive encoder wins on both metrics and beats a supervised classifier
+  trained on the raw window.}\label{tab:jepa}
   \begin{tabular}{@{}lcc@{}}
     \toprule
     self-supervised encoder & probe acc. & GMM ARI \\
     \midrule
-    VAE (generative, reconstruct)              & $0.54$ & $0.14$ \\
-    \textbf{JEPA (predictive, predict repr.)}  & $\mathbf{0.88}$ & $\mathbf{0.67}$ \\
+    VAE (generative, reconstruct)              & $0.53 \pm 0.00$ & $0.14 \pm 0.01$ \\
+    \textbf{JEPA (predictive, predict repr.)}  & $\mathbf{0.89 \pm 0.01}$ & $\mathbf{0.65 \pm 0.08}$ \\
     \midrule
     \emph{supervised classifier (raw window)}  & $0.85$ & --- \\
     \bottomrule
@@ -282,8 +283,9 @@ structure (where the prey is heading $=$ its strategy) and discards the noise.
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{../plots/jepa_vs_vae_encoder.png}
-  \caption{The generative VAE latent blends the four intents (probe $0.54$); the
-  predictive JEPA latent separates them (probe $0.88$, ARI $0.67$), above the
+  \caption{The generative VAE latent blends the four intents (probe $0.53$); the
+  predictive JEPA latent separates them (probe $0.89$, ARI $0.65$; mean of $3$
+  encoder seeds), above the
   supervised ceiling. Same data, same capacity, same $2$-D bottleneck---only the
   objective differs.}
   \label{fig:jepa}
@@ -343,6 +345,70 @@ and a downstream best response that matches the supervised pipeline.
 
 
 %% ==================================================================
+\section{The second strategy axis: circle vs.\ corners}
+\label{sec:resources}
+
+The hidden-intent task has a four-way \emph{discrete} strategy. The lab's other
+axis is induced by the environment: a prey trained with resources placed on a
+circle (radius $0.6$) routes differently from one trained with resources in the
+corners ($\sim$$1.13$). We ask the same Part-1 question there: can an
+unsupervised encoder recover \emph{which specialist} it is watching? (Specialists
+are rolled out in their native environments against the weakened predators they
+were trained with; $1{,}200$ episodes, $3$ encoder seeds throughout.)
+
+\paragraph{The signal is in occupancy, not in a trajectory window.}
+A supervised probe on a raw absolute-coordinate window of the first episode is at
+\emph{chance} ($0.54$ at $k{=}12$--$25$; chance $0.5$): no encoder, of any kind,
+could separate the placements from that input, because a single episode is
+dominated by evasion. The same probe on a normalized $8{\times}8$
+\emph{occupancy histogram} --- \emph{where} the prey spends its time --- reaches
+$0.71/0.88/0.93$ over $25/50/100$ observed steps. The featurization, not the
+encoder objective, gates this task.
+
+\paragraph{Predict vs.\ reconstruct, revisited.}
+On occupancy features with a $2$-D latent, the JEPA encoder again leads the VAE
+($0.63$ vs.\ $0.48$ probe at $k{=}50$; $0.67$ vs.\ $0.66$ at $k{=}100$), but with
+a $4$-D latent the ordering \emph{reverses} ($0.81$ VAE vs.\ $0.67$ JEPA at
+$k{=}100$). This delineates the principle from Part~1: JEPA's advantage comes
+from \emph{discarding unpredictable detail}, which is decisive when the input
+mixes evasion noise with signal (raw trajectories, Table~\ref{tab:jepa}) --- but
+an occupancy histogram has \emph{already} aggregated the noise away, so
+reconstruction stops paying a noise tax and capacity favors the generative
+objective. Neither objective, at any tested configuration, produces
+unsupervised \emph{clusters} (GMM ARI $\approx 0$, matching the earlier
+occupancy-VAE study): the placement is a linearly decodable \emph{direction} in
+latent space, not a pair of separated modes. Closing that gap is exactly where
+return-relevant intent objectives~\cite{odrowaz2026gim} or
+equivariant/contrastive shaping enter. The predators' own occupancy is far less
+informative (supervised probe $0.64$ at $k{=}100$; latents near chance):
+the \emph{opponent} is the signal carrier.
+
+\paragraph{Does the latent help a predator model?}
+Following the behaviour-cloning protocol, we predict a predator's next action
+from all agent positions, $\pi(a\mid s)$, versus the same input plus the
+unsupervised prey latent, $\pi(a\mid s, z)$ --- with $z$ computed from the
+prey's \emph{first} episode and BC evaluated on the \emph{second} (episode-level
+train/val split, $3$ seeds). Conditioning on the \emph{true} placement helps
+clearly ($0.800 \pm 0.007$ vs.\ $0.776 \pm 0.004$ held-out action accuracy), so
+the hypothesized effect is real; conditioning on today's unsupervised latents
+does not ($0.772$ for both VAE and JEPA) --- exactly as the probe curve
+predicts, since at a single episode of observation ($25$ steps) those latents
+carry almost no placement signal ($\approx 0.51$ probe). The oracle--baseline
+gap is the value a better opponent latent stands to capture.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.99\textwidth]{../plots/mopa_latent_resources_mappo_prey_occ.png}
+  \caption{Circle vs.\ corners specialists, occupancy features ($2$-D latents,
+  $3$ encoder seeds). Left to right: VAE and JEPA latent scatters, placement
+  recovery vs.\ the supervised ceiling, and the observation-length sweep. The
+  signal is present (supervised $0.93$ at $k{=}100$) and JEPA leads the VAE at
+  every length at this latent size, but no unsupervised clustering emerges
+  (ARI $\approx 0$) --- the honest open problem on this axis.}
+  \label{fig:resources}
+\end{figure}
+
+%% ==================================================================
 \section{Related work}
 
 \paragraph{Opponent modeling and theory of mind.}
@@ -357,8 +423,8 @@ unsupervised opponent encoder of Papoudakis and Albrecht~\cite{papoudakis2019vae
 which models opponents with a variational autoencoder from local information.
 Our predictive encoder targets exactly that setting and improves on it: a VAE
 spends capacity reconstructing the prey's evasion noise, whereas a joint-embedding
-predictor keeps only what is predictable---the strategy (probe accuracy $0.88$ vs
-$0.54$, matching a supervised classifier). Reasoning about an \emph{uncertain}
+predictor keeps only what is predictable---the strategy (probe accuracy $0.89$ vs
+$0.53$, matching a supervised classifier). Reasoning about an \emph{uncertain}
 opponent type is studied for imperfect-information games~\cite{shen2019}; our
 belief-sharpness ablation sharpens the point---acting on a confident but wrong
 type ($-47\%$) is worse than ignoring type altogether.

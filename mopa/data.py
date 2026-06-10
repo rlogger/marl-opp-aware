@@ -24,7 +24,8 @@ EP_LEN = 25                       # auto-reset boundary inside the 50-step rollo
 
 def specialist_dataset(algorithm="mappo", ckpt_suffix="_wp", n_eps=200,
                        ckpt_seeds=(0, 1, 2), pred_max_speed=0.6,
-                       pred_accel=1.5, collect_reward=10.0, rng0=0):
+                       pred_accel=1.5, collect_reward=10.0, rng0=0,
+                       num_steps=None):
     """Roll out both specialists in their native envs; return pooled arrays.
 
     Returns dict with
@@ -38,6 +39,8 @@ def specialist_dataset(algorithm="mappo", ckpt_suffix="_wp", n_eps=200,
     G.PRED_MAX_SPEED = pred_max_speed
     G.PRED_ACCEL = pred_accel
     G.COLLECT_REWARD = collect_reward
+    if num_steps is not None:
+        G.NUM_STEPS = int(num_steps)
 
     rows = {k: [] for k in ("prey_pos", "pred_pos", "prey_act", "pred_act",
                             "label", "ckpt_seed")}
@@ -72,3 +75,25 @@ def standardize(X, mu=None, sd=None):
     if mu is None:
         mu, sd = X.mean(0), X.std(0) + 1e-6
     return (X - mu) / sd, mu, sd
+
+
+# Occupancy featurisation (exp5b's finding, kept): a single trajectory window in
+# raw coordinates does NOT separate the placements (evasion dominates; verified
+# again here with the supervised probe at chance for k<=25 absolute coords).
+# WHERE the prey spends time, accumulated over longer observation, does.
+OCC_BINS = 8
+OCC_RANGE = (-1.4, 1.4)
+
+
+def occupancy(pos, t0, t1, bins=OCC_BINS):
+    """Per-episode normalised 2-D occupancy histogram over steps [t0, t1).
+    pos (N, T+1, 2) -> (N, bins*bins) float32."""
+    N = len(pos)
+    out = np.zeros((N, bins * bins), np.float32)
+    for i in range(N):
+        h, _, _ = np.histogram2d(pos[i, t0:t1, 0], pos[i, t0:t1, 1],
+                                 bins=bins, range=[OCC_RANGE, OCC_RANGE])
+        h = h.ravel().astype(np.float32)
+        s = h.sum()
+        out[i] = h / s if s > 0 else h
+    return out

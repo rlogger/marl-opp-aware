@@ -4,14 +4,17 @@ opponent latent help?  pi(a | s)  vs  pi(a | s, z).
   * naive BC (the notes' starting point): predict a predator's action from all
     agent locations (+ a one-step velocity proxy + predator id).
   * latent-conditioned BC: append z = the unsupervised encoder's latent of the
-    PREY's first CTX steps (the opponent-strategy code). Variants: z from the
-    VAE, z from the JEPA encoder, and the oracle placement one-hot (ceiling).
+    PREY's episode-1 OCCUPANCY (the opponent-strategy code: where it routes;
+    raw coordinate windows verifiably carry no placement signal). Variants:
+    z from the VAE, z from the JEPA encoder (predict episode-1+2 occupancy
+    representation from episode 1), and the oracle placement one-hot (ceiling).
 
-Protocol: encoders are pretrained unsupervised on the pooled unlabeled prey
-trajectories (standard SSL pretraining; no label enters any latent). BC uses
-an EPISODE-level train/val split; BC samples start at t = CTX so z never
-contains information from after the predicted step. mean +/- std over 3 BC
-seeds (the encoder latent is from encoder seed 0).
+Protocol: watch one episode, predict the next -- z is computed from episode 1
+(steps 0..25) only, and BC samples are episode 2 (steps 26..50), so the
+conditioning never sees the predicted steps. Encoders are pretrained
+unsupervised on the pooled unlabeled prey trajectories (standard SSL
+pretraining; no label enters any latent). BC uses an EPISODE-level train/val
+split. mean +/- std over 3 BC seeds (encoder latent from encoder seed 0).
 
 Outputs: plots/mopa_bc_latent_{alg}.png
          logs/MPE_simple_tag_v3/mopa_bc_latent_{alg}.npz
@@ -26,7 +29,7 @@ import matplotlib.pyplot as plt
 
 from mopa import legacy
 from mopa.bc import bc_comparison
-from mopa.data import specialist_dataset, window, standardize, EP_LEN
+from mopa.data import specialist_dataset, standardize, occupancy, EP_LEN
 from mopa.encoders import train_jepa, train_vae
 import jax
 
@@ -34,7 +37,6 @@ import jax
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--algorithm", default="mappo", choices=["mappo", "iql"])
-    ap.add_argument("--ctx", type=int, default=12)
     ap.add_argument("--n_eps", type=int, default=200)
     ap.add_argument("--seeds", type=int, nargs="*", default=[0, 1, 2])
     args = ap.parse_args()
@@ -46,25 +48,25 @@ def main():
     y = ds["label"]
     print(f"  episodes: {len(y)}")
 
-    # unsupervised prey-strategy latents (encoder seed 0)
-    Xc, _, _ = standardize(window(ds["prey_pos"], args.ctx))
-    Xt, _, _ = standardize(window(ds["prey_pos"], EP_LEN))
-    print("pretraining unsupervised encoders on prey trajectories...")
+    # unsupervised prey-strategy latents from episode-1 occupancy (seed 0)
+    Xc, _, _ = standardize(occupancy(ds["prey_pos"], 0, EP_LEN))
+    Xt, _, _ = standardize(occupancy(ds["prey_pos"], 0, 2 * EP_LEN))
+    print("pretraining unsupervised encoders on prey episode-1 occupancy...")
     z_vae = train_vae(Xc, jax.random.PRNGKey(0))
     z_jepa = train_jepa(Xc, Xt, jax.random.PRNGKey(0))
     oracle = np.eye(2, dtype=np.float32)[y]
 
-    print("behaviour cloning (episode-level split, 3 seeds)...")
+    print("behaviour cloning episode 2 (episode-level split, 3 seeds)...")
     res = bc_comparison(
         ds,
         {"none": None, "z_vae": z_vae, "z_jepa": z_jepa, "oracle": oracle},
-        ctx=args.ctx, seeds=tuple(args.seeds))
+        ctx=EP_LEN + 1, seeds=tuple(args.seeds))
 
     np.savez(os.path.join(legacy.LOGDIR, f"mopa_bc_latent_{args.algorithm}.npz"),
              **{f"{k}_runs": v[2] for k, v in res.items()},
              **{f"{k}_mean": v[0] for k, v in res.items()},
              **{f"{k}_std": v[1] for k, v in res.items()},
-             ctx=args.ctx)
+             ctx=26)
 
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     order = ["none", "z_vae", "z_jepa", "oracle"]
@@ -78,7 +80,7 @@ def main():
     ax.axhline(base, ls=":", c="k", lw=1)
     ax.set_ylabel("held-out action accuracy (episode split)")
     ax.set_title(f"Predator BC with an opponent-strategy latent "
-                 f"({args.algorithm.upper()}, k={args.ctx})\n"
+                 f"({args.algorithm.upper()}, episode-1 occupancy latent)\n"
                  "conditioning on the unsupervised prey latent improves "
                  "action prediction")
     lo = min(vals) - 3 * max(errs) - 0.02

@@ -30,17 +30,34 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from mopa import legacy
-from mopa.data import specialist_dataset, window, standardize, EP_LEN
+from mopa.data import (specialist_dataset, window, standardize, occupancy,
+                       EP_LEN)
 from mopa.encoders import evaluate_encoders, probe_acc
 
 COL = {0: "#0d6e7a", 1: "#b85c10"}          # circle teal, corners orange
 LBL = {0: "circle", 1: "corners"}
 
 
-def featurize(ds, team, k):
+def featurize(ds, team, k, features="window"):
+    """features='window': raw absolute coords, first k steps masked-future.
+    features='occupancy': context = occupancy over [0, k/2), JEPA target =
+    occupancy over [0, k) -- predict WHERE the opponent will spend its time.
+    A raw coordinate window does not separate the placements (supervised probe
+    at chance, verified); occupancy over longer observation does (exp5b)."""
     pos = ds["prey_pos"] if team == "prey" else ds["pred_pos"]
-    Xc = window(pos, k)                       # first-k steps, future masked
-    Xt = window(pos, EP_LEN)                  # full first episode (JEPA target)
+    if features == "window":
+        Xc = window(pos, k)                   # first-k steps, future masked
+        Xt = window(pos, EP_LEN)              # full first episode (JEPA target)
+    else:
+        if team == "pred":
+            pos = pos.reshape(pos.shape[0], pos.shape[1], -1, 2)
+            Xc = np.concatenate([occupancy(pos[:, :, i], 0, max(2, k // 2))
+                                 for i in range(pos.shape[2])], -1)
+            Xt = np.concatenate([occupancy(pos[:, :, i], 0, k)
+                                 for i in range(pos.shape[2])], -1)
+        else:
+            Xc = occupancy(pos, 0, max(2, k // 2))
+            Xt = occupancy(pos, 0, k)
     Xc, mu, sd = standardize(Xc)
     Xt, _, _ = standardize(Xt)
     return Xc, Xt
@@ -50,27 +67,39 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--algorithm", default="mappo", choices=["mappo", "iql"])
     ap.add_argument("--team", default="prey", choices=["prey", "pred"])
+    ap.add_argument("--features", default="window",
+                    choices=["window", "occupancy"])
+    ap.add_argument("--num_steps", type=int, default=None,
+                    help="rollout length (default 50; use 100 for occupancy)")
     ap.add_argument("--ctx", type=int, default=12)
     ap.add_argument("--sweep", type=int, nargs="*", default=[4, 8, 12, 18, 25])
     ap.add_argument("--n_eps", type=int, default=200)
     ap.add_argument("--seeds", type=int, nargs="*", default=[0, 1, 2])
+    ap.add_argument("--lat", type=int, default=2)
+    ap.add_argument("--enc_steps", type=int, default=5000)
     args = ap.parse_args()
 
     os.makedirs(legacy.PLOTDIR, exist_ok=True)
     tag = f"{args.algorithm}_{args.team}"
+    if args.features == "occupancy":
+        tag += "_occ"
+    if args.lat != 2:
+        tag += f"_lat{args.lat}"
 
     print(f"rolling out specialists ({args.algorithm}, wp)...")
-    ds = specialist_dataset(algorithm=args.algorithm, n_eps=args.n_eps)
+    ds = specialist_dataset(algorithm=args.algorithm, n_eps=args.n_eps,
+                            num_steps=args.num_steps)
     y = ds["label"]
     print(f"  episodes: {len(y)}  (circle {int((y == 0).sum())}, "
           f"corners {int((y == 1).sum())})")
 
     # ---- main comparison at ctx ----
-    Xc, Xt = featurize(ds, args.team, args.ctx)
+    Xc, Xt = featurize(ds, args.team, args.ctx, args.features)
     sup = probe_acc(Xc, y)                     # supervised ceiling, same input
     print(f"  raw-window supervised probe @k={args.ctx}: {sup:.3f} (chance 0.5)")
     summ, z_keep = evaluate_encoders(Xc, Xt, y, n_classes=2,
-                                     seeds=tuple(args.seeds))
+                                     seeds=tuple(args.seeds), lat=args.lat,
+                                     steps=args.enc_steps)
     for n in ("vae", "jepa"):
         print(f"  {n.upper():4s}: probe {summ[f'{n}_probe_mean']:.3f}"
               f" +/- {summ[f'{n}_probe_std']:.3f}   "
@@ -80,10 +109,11 @@ def main():
     sweep = {"ks": np.asarray(args.sweep, np.int32), "sup": [],
              "vae_probe": [], "vae_std": [], "jepa_probe": [], "jepa_std": []}
     for k in args.sweep:
-        Xck, Xtk = featurize(ds, args.team, k)
+        Xck, Xtk = featurize(ds, args.team, k, args.features)
         sweep["sup"].append(probe_acc(Xck, y))
         sk, _ = evaluate_encoders(Xck, Xtk, y, n_classes=2,
-                                  seeds=tuple(args.seeds))
+                                  seeds=tuple(args.seeds), lat=args.lat,
+                                  steps=args.enc_steps)
         sweep["vae_probe"].append(sk["vae_probe_mean"])
         sweep["vae_std"].append(sk["vae_probe_std"])
         sweep["jepa_probe"].append(sk["jepa_probe_mean"])
@@ -100,8 +130,11 @@ def main():
 
     # ---- figure: two scatters + bars + sweep ----
     fig, ax = plt.subplots(1, 4, figsize=(19, 4.6))
+    from sklearn.decomposition import PCA
     for a, name in zip(ax[:2], ("vae", "jepa")):
         z = z_keep[name]
+        if z.shape[1] > 2:
+            z = PCA(2).fit_transform(z)
         for lab in (0, 1):
             m = y == lab
             a.scatter(z[m, 0], z[m, 1], s=10, alpha=0.6, c=COL[lab],
