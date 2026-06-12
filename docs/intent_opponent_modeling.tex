@@ -388,13 +388,32 @@ Following the behaviour-cloning protocol, we predict a predator's next action
 from all agent positions, $\pi(a\mid s)$, versus the same input plus the
 unsupervised prey latent, $\pi(a\mid s, z)$ --- with $z$ computed from the
 prey's \emph{first} episode and BC evaluated on the \emph{second} (episode-level
-train/val split, $3$ seeds). Conditioning on the \emph{true} placement helps
-clearly ($0.800 \pm 0.007$ vs.\ $0.776 \pm 0.004$ held-out action accuracy), so
-the hypothesized effect is real; conditioning on today's unsupervised latents
-does not ($0.772$ for both VAE and JEPA) --- exactly as the probe curve
-predicts, since at a single episode of observation ($25$ steps) those latents
-carry almost no placement signal ($\approx 0.51$ probe). The oracle--baseline
-gap is the value a better opponent latent stands to capture.
+train/val split, $3$ seeds; Table~\ref{tab:bc}). Conditioning on the \emph{true}
+placement helps clearly ($0.800 \pm 0.007$ vs.\ $0.776 \pm 0.004$ held-out
+action accuracy), so the hypothesized effect is real; conditioning on today's
+unsupervised latents does not ($0.772$ for both VAE and JEPA) --- exactly as the
+probe curve predicts, since at a single episode of observation ($25$ steps)
+those latents carry almost no placement signal ($\approx 0.51$ probe). The
+oracle--baseline gap is the value a better opponent latent stands to capture.
+
+\begin{table}[h]
+  \centering
+  \caption{Predator behaviour cloning with an opponent-strategy latent:
+  held-out action accuracy, episode-level train/val split, watch episode~1
+  $\rightarrow$ predict episode~2 (mean $\pm$ std, $3$ BC seeds). The oracle
+  ceiling shows the conditioning effect is real; the unsupervised episode-1
+  latents do not yet carry enough signal to realize it.}\label{tab:bc}
+  \begin{tabular}{@{}lc@{}}
+    \toprule
+    predator BC variant & held-out action acc. \\
+    \midrule
+    $\pi(a\mid s)$ (naive BC)                          & $0.776 \pm 0.004$ \\
+    $\pi(a\mid s, z_{\mathrm{VAE}})$                   & $0.772 \pm 0.006$ \\
+    $\pi(a\mid s, z_{\mathrm{JEPA}})$                  & $0.772 \pm 0.004$ \\
+    \textbf{$\pi(a\mid s, $ placement$)$ (oracle)}     & $\mathbf{0.800 \pm 0.007}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \begin{figure}[h]
   \centering
