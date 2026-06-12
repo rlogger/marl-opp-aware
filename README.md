@@ -118,7 +118,7 @@ python src/intent_demo.py
 
 Trained checkpoints land in `logs/` and are **not** tracked in git — they are
 regenerated deterministically by the training commands above. Figures live in
-`plots/`; the site source is in `site/`; the papers (this study plus the Exp 4/5
+`plots/`; the papers (this study plus the Exp 4/5
 write-ups) are in `docs/`.
 
 ## Setup
