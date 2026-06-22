@@ -383,18 +383,49 @@ equivariant/contrastive shaping enter. The predators' own occupancy is far less
 informative (supervised probe $0.64$ at $k{=}100$; latents near chance):
 the \emph{opponent} is the signal carrier.
 
+\paragraph{Vanilla behaviour cloning is a faithful clone.}
+Before asking whether a latent helps, we check the policy class. We clone the
+MAPPO predator from a hand-built state feature (all agent positions $+$ a
+one-step velocity proxy $+$ predator id) --- strictly less than the policy
+network sees. Deployed against the same prey, the cloned predators recover
+$86\%$ of the expert's captures-edge over random ($1.22$ vs.\ MAPPO's $1.35$
+captures/episode, random $0.40$; $3$ checkpoint seeds, two placements), at a
+held-out action match of $0.80$ (episode-level split; Fig.~\ref{fig:bcmappo}).
+The BC policy class is not the bottleneck; the
+remaining $14\%$ is the headroom a strategy signal could close.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.62\textwidth]{../plots/mopa_bc_vs_mappo.png}
+  \caption{Deployed captures/episode for the random floor, vanilla behaviour
+  cloning, and the MAPPO expert it imitates ($3$ checkpoint seeds, two
+  placements). From a hand-built state feature, BC recovers $86\%$ of the
+  expert's edge over random --- the policy class is faithful, so the residual
+  gap is the headroom an opponent-strategy signal could close.}
+  \label{fig:bcmappo}
+\end{figure}
+
 \paragraph{Does the latent help a predator model?}
-Following the behaviour-cloning protocol, we predict a predator's next action
-from all agent positions, $\pi(a\mid s)$, versus the same input plus the
-unsupervised prey latent, $\pi(a\mid s, z)$ --- with $z$ computed from the
-prey's \emph{first} episode and BC evaluated on the \emph{second} (episode-level
-train/val split, $3$ seeds; Table~\ref{tab:bc}). Conditioning on the \emph{true}
-placement helps clearly ($0.800 \pm 0.007$ vs.\ $0.776 \pm 0.004$ held-out
-action accuracy), so the hypothesized effect is real; conditioning on today's
-unsupervised latents does not ($0.772$ for both VAE and JEPA) --- exactly as the
-probe curve predicts, since at a single episode of observation ($25$ steps)
-those latents carry almost no placement signal ($\approx 0.51$ probe). The
-oracle--baseline gap is the value a better opponent latent stands to capture.
+We predict a predator's next action from all agent positions, $\pi(a\mid s)$,
+versus the same input plus the unsupervised prey latent, $\pi(a\mid s, z)$ ---
+with $z$ computed from the prey's \emph{first} episode and BC evaluated on the
+\emph{second} (episode-level train/val split, $3$ seeds; Table~\ref{tab:bc}).
+Conditioning on the \emph{true} placement helps clearly ($0.800 \pm 0.007$ vs.\
+$0.776 \pm 0.004$ held-out action accuracy), so the hypothesized effect is real;
+conditioning on a \emph{single-episode} unsupervised latent does not ($0.772$ for
+both VAE and JEPA) --- exactly as the probe curve predicts, since at one episode
+of observation those latents carry almost no placement signal ($\approx 0.51$
+probe). The placement is constant across a specialist's episodes, so giving the
+encoder \emph{more} observation strengthens the latent and, with it, the BC gain.
+Reading the VAE latent from $L$ steps before a held-out episode (steps
+$125$--$150$ of a six-episode rollout), its placement probe climbs from $0.60$ at
+$L{=}25$ to $0.78$ at $L{=}125$, and latent-conditioned BC tracks it: from no gain
+at $L{=}25$ ($0.764$ vs.\ vanilla $0.766$) it overtakes vanilla by $L{=}50$ and
+reaches the oracle (true-placement) ceiling by $L{=}125$ ($0.795$ vs.\ oracle
+$0.792$; Fig.~\ref{fig:bcsweep}). The JEPA latent, whose probe stays flat
+($\approx\!0.6$) at this $4$-D latent size, gives no gain at any $L$ --- the
+downstream BC benefit appears exactly to the degree the latent recovers the
+strategy. Encoder quality translates directly into control benefit.
 
 \begin{table}[h]
   \centering
@@ -414,6 +445,19 @@ oracle--baseline gap is the value a better opponent latent stands to capture.
     \bottomrule
   \end{tabular}
 \end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.84\textwidth]{../plots/mopa_bc_latent_sweep.png}
+  \caption{Latent-conditioned predator BC vs.\ encoder observation length $L$ (the
+  steps the encoder sees before the held-out episode, steps $125$--$150$ of a
+  six-episode specialist rollout; $4$-D latents, $3$ BC seeds). As $L$ grows the
+  VAE latent's placement probe rises (annotated) and its BC accuracy climbs from
+  below vanilla at $L{=}25$ to the oracle (true-placement) ceiling by $L{=}125$;
+  the JEPA latent's probe stays flat and it yields no gain. The downstream BC
+  benefit tracks the latent's probe --- encoder quality is the lever.}
+  \label{fig:bcsweep}
+\end{figure}
 
 \begin{figure}[h]
   \centering
@@ -620,6 +664,12 @@ reinforcement learning via equivariance. \emph{NeurIPS}, 2024.
 joint-embedding predictive architecture for trajectory similarity computation.
 \emph{ACM SIGSPATIAL}, 2024.
 
+\bibitem{li2024ctr} T.~Li, K.~Zhu, J.~Li, and Y.~Zhang. Learning distinguishable
+trajectory representation with contrastive loss. \emph{NeurIPS}, 2024.
+
+\bibitem{lei2025stril} S.~Lei, K.~Lee, L.~Li, and J.~Park. Learning strategy
+representation for imitation learning in multi-agent games. \emph{AAAI}, 2025.
+
 \bibitem{liu2024} Q.~Liu, J.~Ye, X.~Ma, J.~Yang, B.~Liang, and C.~Zhang. Efficient
 multi-agent reinforcement learning by planning. \emph{ICLR}, 2024.
 
@@ -658,8 +708,8 @@ and P.~Bachman. Data-efficient reinforcement learning with self-predictive
 representations. \emph{ICLR}, 2021.
 
 \bibitem{odrowaz2026gim} M.~Odrowaz-Sypniewski, J.~Bayrooti, A.~Shankar, and
-A.~Prorok. Generalized intention modeling in multi-agent reinforcement learning.
-\emph{arXiv:2605.31318}, 2026.
+A.~Prorok. Generalized intention modeling (MIX) in multi-agent reinforcement
+learning. \emph{arXiv:2605.31318}, 2026.
 
 \bibitem{schwartz2023potmmcp} J.~Schwartz, H.~Kurniawati, and M.~Hutter.
 Combining a meta-policy and Monte-Carlo planning for scalable type-based

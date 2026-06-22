@@ -133,8 +133,16 @@ def main():
     from sklearn.decomposition import PCA
     for a, name in zip(ax[:2], ("vae", "jepa")):
         z = z_keep[name]
+        # AXES: for a 2-D latent the two axes ARE the latent coordinates
+        # directly; for a higher-D latent we project to its top-2 principal
+        # components, so the axes are PC1/PC2 of the latent (a rotation that
+        # keeps the most-spread directions). Each point = one episode's prey
+        # trajectory, colored by its true placement.
         if z.shape[1] > 2:
             z = PCA(2).fit_transform(z)
+            xl, yl = f"PC1 of {args.lat}-D latent", f"PC2 of {args.lat}-D latent"
+        else:
+            xl, yl = "latent dim 1", "latent dim 2"
         for lab in (0, 1):
             m = y == lab
             a.scatter(z[m, 0], z[m, 1], s=10, alpha=0.6, c=COL[lab],
@@ -144,8 +152,8 @@ def main():
                     f"$\\pm${summ[f'{name}_probe_std']:.2f}   "
                     f"ARI {summ[f'{name}_ari_mean']:.2f}"
                     f"$\\pm${summ[f'{name}_ari_std']:.2f}", fontsize=10.5)
-        a.set_xlabel("latent dim 1")
-        a.set_ylabel("latent dim 2")
+        a.set_xlabel(xl)
+        a.set_ylabel(yl)
         a.legend(fontsize=8)
 
     b = ax[2]

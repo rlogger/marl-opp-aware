@@ -421,6 +421,37 @@ controlled testbed. Good "same shape, different domain + cheaper encoder" cite.
 
 ---
 
+## 7. Strategy-conditioned imitation (the behaviour-cloning thread)
+
+The 6/12 result — clone a placement-blind predator, condition it on a learned
+prey-strategy latent, recover deployed performance — sits in a 2024–2025 niche
+the earlier review missed.
+
+**Lei et al. 2025 — STRIL: Learning Strategy Representation for Imitation Learning in Multi-Agent Games.** *AAAI; arXiv:2409.19363.*
+Learns a per-trajectory strategy latent (a partially-conditioned variational
+recurrent net) and uses it to condition/filter imitation in competitive games
+(Pong, Texas Hold'em, Connect Four), explicitly conditioning on observations to
+*avoid leaking opponent information*.
+→ for us: **the must-cite anchor for our latent-conditioned-BC result** — the
+mirror image (we clone the predator and condition on the prey's strategy). The
+nearest published statement of the exact problem.
+
+**Bui et al. 2024 — Mimicking To Dominate: Imitation Learning Strategies for Multi-Agent Competitive Games.** *NeurIPS; arXiv:2308.10188.*
+Predicts opponents' next moves from local observations with hidden opponent
+actions, then fuses imitation with policy learning (SMACv2).
+→ for us: the competitive-IL neighbour, more on-point than Lowe 2017 / He 2016
+for the BC angle; supports the partial-observability framing.
+
+**Franzmeyer et al. 2024 — Select to Perfect: Imitating Desired Behaviour from Large Multi-Agent Data.** *ICLR; arXiv:2405.03735.*
+Selects which agents/trajectories to clone (an "exchange value" score) before BC.
+→ for us: the "not all demos are equal" lens on cloning a MAPPO teacher;
+connects to closing the vanilla-BC→expert gap.
+
+(For the unsupervised-clustering remedy, see §4's CTR — contrastive MI between
+trajectory embeddings and identity codes is the direct fix for our ARI≈0.)
+
+---
+
 ## Synthesis — the real gaps and where the model can improve
 
 Ranked by leverage for this project.
