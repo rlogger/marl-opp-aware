@@ -81,8 +81,8 @@ def main():
     ax.set_ylabel("held-out action accuracy (episode split)")
     ax.set_title(f"Predator BC with an opponent-strategy latent "
                  f"({args.algorithm.upper()}, episode-1 occupancy latent)\n"
-                 "conditioning on the unsupervised prey latent improves "
-                 "action prediction")
+                 "at one episode the latent is too weak; the oracle helps "
+                 "(see the observation sweep)")
     lo = min(vals) - 3 * max(errs) - 0.02
     ax.set_ylim(max(0.0, lo), max(vals) + 3 * max(errs) + 0.02)
     for bar, v in zip(bars, vals):
