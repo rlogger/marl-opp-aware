@@ -34,8 +34,11 @@ Numbers: blind 2.68 · wrong-guess 1.42 (−47%) · hard-inferred 2.56 (−5%) �
 ### 9. Does BC even clone the expert? — CAPTURES *(fig: mopa_bc_vs_mappo.png)*
 > "Before asking if a latent helps, is BC a faithful clone? Deployed in the game, vanilla BC gets 1.22 captures; the MAPPO expert it copies gets 1.35; random is 0.40. So BC recovers **86%** of the expert's edge — cloning isn't the bottleneck. The 14% gap is the room a strategy signal could fill."
 
-### 10. Latent-conditioned BC — CAPTURES *(fig: mopa_bc_latent_deploy.png)* ★ [FILL]
-> "Now condition a placement-blind clone on the prey-strategy latent and measure captures. [vanilla X · +latent Y · +oracle Z · MAPPO 1.35]. The latent recovers [N]% of the pooled-BC→expert gap." — *reframe to sweep if deploy unavailable.*
+### 10. Latent-conditioned BC — CAPTURES *(fig: mopa_bc_latent_deploy.png)* ★
+> "Condition a placement-blind clone on the prey-strategy latent and measure captures. Placement-blind 0.95, plus the latent 0.99, plus the *true* placement 1.11, expert 1.14. So knowing the placement recovers **85%** of the gap between a placement-blind clone and the expert — the strategy is hugely valuable for performance. Our unsupervised latent recovers about **22%** so far — and I'll be honest, that 22% is within the error bars. The ceiling is high; the encoder isn't there yet. That's the clustering problem."
+
+### 10b. Why it should work — encoder quality is the lever *(fig: mopa_bc_latent_sweep.png)*
+> "On action accuracy, with a per-episode latent, the story is cleaner: as the encoder watches longer its probe climbs 0.60→0.78 and BC tracks it right up to the oracle. So a better encoder is the lever. Caveat: the placement is fixed, so 'more observation' means a better occupancy *estimate* — averaging — not the strategy unfolding."
 
 ### 11. Honest mechanism — is the gain just averaging? ★ NEW
 > "A fair question: the latent improves as it watches longer — is that the *strategy*, or just averaging over more episodes? Honest answer: here the placement is **fixed** across a specialist's episodes, so more observation gives a better *occupancy estimate* — it's estimation quality, statistical averaging, not the strategy unfolding. That's different from the hidden-intent task, where the intent genuinely *is* revealed over time. So I call it a scaling-with-observation result, and I don't overclaim."
