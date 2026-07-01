@@ -7,9 +7,9 @@
 
 In adversarial co-training, each team faces an opponent whose strategy varies and
 adapts; a best response that overfits to one opponent loses to strategies it has
-not recently seen. This repo pursues the proposal's remedy — model the opponent's
+not recently seen. This repo pursues the proposal's remedy: model the opponent's
 latent strategy with **calibrated uncertainty** (Part 1) and **plan against it**
-(Part 2) — and validates it in a controlled predator–prey game where the opponent
+(Part 2). It validates that loop in a controlled predator-prey game where the opponent
 (the prey, `red`) draws a hidden strategy each episode and the controlled team
 (the predators, `blue`) must infer it.
 
@@ -45,7 +45,7 @@ not tracked in git. See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
 
 | `blue` predator                       | captures / ep | vs. opponent-blind |
 |---------------------------------------|:-------------:|:------------------:|
-| opponent-blind (no strategy info)     | 2.68          | —                  |
+| opponent-blind (no strategy info)     | 2.68          | baseline           |
 | reactive, hard-inferred intent (@k=8) | 2.56          | −5%                |
 | reactive belief (uncertainty-aware)   | 2.82          | +5%                |
 | planner, flat belief (ablation)       | 3.07          | +15%               |
@@ -56,7 +56,7 @@ The opponent's latent strategy is inferable from its behavior (encoder accuracy
 0.37 → 0.97 over 3 → 25 observed steps); a point-estimate model is brittle (−47%
 fed a wrong guess, and even an honestly *inferred* hard guess at a fixed step
 loses, −5%); and **planning against the uncertainty-aware opponent model is
-the most robust response** — above even an oracle handed the true strategy. The
+the most robust response**, above even an oracle handed the true strategy. The
 flat-belief ablation isolates the opponent inference as the source of the gain
 (+40%).
 
@@ -93,7 +93,7 @@ checks regenerated raw `.npz` metrics against paper-facing thresholds.
 
 ## Repository map
 
-### Flagship — adaptive opponent modeling (hidden-intent predator–prey)
+### Flagship: adaptive opponent modeling (hidden-intent predator-prey)
 
 The proposal's Part 1 (encode the opponent's latent strategy into a calibrated
 belief) and Part 2 (sample that model inside a planner), instantiated so every
@@ -104,7 +104,7 @@ quantity is measurable against ground truth.
 | `src/simple_tag_intent.py` | env: prey draws a hidden corner-intent each episode; predators don't see it. `reveal_to_pred` = oracle; `intent_belief_noise` = trains on soft beliefs (the uncertainty-aware Part-1 model). |
 | `configs/alg/mappo_intent_{unaware,oracle,belief}.yaml` | the three co-training conditions (opponent-blind / oracle / belief). |
 | `src/part2_intent_eval.py` | **Part 1**: encoder inferring intent from the prey's first-*k* steps (accuracy + posterior entropy), and the unaware/guess/inferred/oracle capture ladder. → `plots/part2_intent_eval.png`. |
-| `src/part2_planner.py` | **Part 2**: belief-conditioned Monte-Carlo planner — samples the opponent's moves under a strategy drawn from the belief. → `plots/part2_planner.png`. |
+| `src/part2_planner.py` | **Part 2**: belief-conditioned Monte-Carlo planner. Samples the opponent's moves under a strategy drawn from the belief. → `plots/part2_planner.png`. |
 | `src/intent_demo.py` | demo: belief predators infer the corner and converge. → `plots/demo_intent.gif`. |
 | `src/part3_learned_planner.py` | exploratory: the planner through a *learned* dynamics model (feasible but model-limited; not in the paper). |
 
@@ -142,15 +142,15 @@ python src/mappo_teams_mlp.py alg=mappo_intent_unaware NUM_SEEDS=3
 python src/mappo_teams_mlp.py alg=mappo_intent_oracle  NUM_SEEDS=3
 python src/mappo_teams_mlp.py alg=mappo_intent_belief  NUM_SEEDS=3
 
-# Part 1 — encoder + the unaware/inferred/oracle ladder  -> plots/part2_intent_eval.png
+# Part 1: encoder + the unaware/inferred/oracle ladder  -> plots/part2_intent_eval.png
 python src/part2_intent_eval.py
-# Part 2 — belief-conditioned planner                    -> plots/part2_planner.png
+# Part 2: belief-conditioned planner                    -> plots/part2_planner.png
 python src/part2_planner.py
 # demo                                                    -> plots/demo_intent.gif
 python src/intent_demo.py
 ```
 
-Trained checkpoints land in `logs/` and are **not** tracked in git — they are
+Trained checkpoints land in `logs/` and are **not** tracked in git. They are
 regenerated deterministically by the training commands above. Figures live in
 `plots/`; the papers (this study plus the Exp 4/5
 write-ups) are in `docs/`.
@@ -191,4 +191,4 @@ is minted per release):
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

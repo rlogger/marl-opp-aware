@@ -2,74 +2,101 @@
 
 Deck: `marl_opp_aware_results.pptx`
 
-The deck is intentionally minimal: eight audience-facing slides, with the
-technical defense in speaker notes and repository docs. The core message is that
-the project is strongest when framed as a controlled study of calibrated
-opponent belief plus planning, not as a broad solved-model-based-MARL result.
+This deck is a fuller paper talk. The first slide stays blank except for the
+title. The rest of the deck explains the setup, what each ablation measured,
+where the result fits in the literature, and which experiments should run before
+submission.
 
 ## One-Sentence Positioning
 
-In a controlled hidden-intent predator-prey game, maintaining a calibrated
-belief over the opponent's strategy and sampling that belief in a planner is
-materially stronger than reacting to no model or to a hard guessed intent.
+In a controlled hidden-intent predator-prey game, a calibrated belief over the
+opponent's strategy improves planning more than a hard intent guess.
 
 ## Slide Flow
 
 1. **Adaptive Opponent Modeling for MARL**
-   - Anchor the audience on the three numbers: 4.31 captures for inferred-belief
-     planning, -47% for a wrong hard intent, and zero labels for the JEPA belief.
+   - Blank title slide.
+   - Say the whole talk studies one question: whether belief improves control.
 
-2. **The experiment isolates one question**
-   - The prey sees a hidden corner intent; predators infer it from early motion.
-   - State the boundary early: static intent within each episode.
+2. **The paper claim is narrow enough to defend**
+   - Main result: inferred-belief planning reaches 4.31 captures per episode.
+   - Stress test: a wrong hard intent reaches 1.42.
+   - Label-free path: JEPA belief planning reaches 4.08.
 
-3. **The belief becomes useful evidence quickly**
-   - Accuracy rises from 0.37 to 0.97 as more prey steps are observed.
-   - Wrong confident intent is worse than being blind.
+3. **The task hides strategy inside the prey**
+   - The prey draws a corner intent at reset.
+   - Predators infer intent from early motion.
+   - The fixed map prevents a perception-only explanation.
 
-4. **Planning over the belief is the core result**
-   - Flat-belief planner: 3.07 captures/episode.
+4. **The belief signal becomes measurable**
+   - Intent accuracy rises from 0.37 to 0.97.
+   - Posterior entropy falls from 1.35 to 0.03 nats.
+   - This validates the Part 1 encoder.
+
+5. **Hard intent labels can damage control**
+   - Opponent-blind baseline: 2.68.
+   - Hard intent inferred at k=8: 2.56.
+   - Confident wrong intent: 1.42.
+   - The point estimate loses useful uncertainty.
+
+6. **The planner gets value from the whole belief**
+   - Flat-belief planner: 3.07.
    - Reactive oracle: 4.05.
    - Inferred-belief planner: 4.31.
-   - Say "reactive oracle," not "oracle planner."
+   - The flat-belief ablation isolates the value of inference.
 
-5. **JEPA makes the belief label-free**
-   - JEPA beats VAE on the same trajectory signal without intent labels.
-   - This is the bridge to self-supervised opponent representation learning.
+7. **The oracle comparison needs precise wording**
+   - The oracle policy reacts with true intent.
+   - The belief planner searches short futures.
+   - Say "reactive oracle." An oracle planner remains the real ceiling.
 
-6. **The main caveat is dynamics, not representation**
-   - The learned latent world planner is weak.
-   - This narrows the paper claim to belief and planning with simulator
-     dynamics, while identifying the next engineering risk.
+8. **JEPA recovers the belief without intent labels**
+   - Same trajectory data and latent size as VAE.
+   - JEPA probe accuracy: 0.89.
+   - VAE probe accuracy: 0.53.
+   - JEPA belief planner reaches 4.08.
 
-7. **The BC follow-up says strategy information has value**
-   - BC is a credible clone, so imitation is not the bottleneck.
-   - Oracle strategy information helps; today's unsupervised resource latent is
-     still modest and noisy.
+9. **Learned dynamics failed the control test**
+   - Simulator belief planning works.
+   - The latent world planner reaches 0.57 captures per episode.
+   - Current bottleneck: dynamics fidelity.
 
-8. **What to say, and what not to overclaim**
-   - Claim: calibrated opponent belief matters for planning.
-   - Caveat: static per-episode opponents, simulator planner, reactive oracle.
-   - Next: adaptive opponents and baselines from HOP, MAZero/MAMBA/MARIE/MATWM,
-     MBOM, and AORPO.
+10. **BC is strong enough to test strategy inputs**
+    - Random policy: 0.40.
+    - Vanilla BC: 1.22.
+    - MAPPO expert: 1.35.
+    - The clone is good enough for strategy-conditioning checks.
+
+11. **Strategy information has value, even when the latent is weak**
+    - Oracle placement closes most of the deployed capture gap.
+    - The current unsupervised latent gives a small deployed lift.
+    - Better probes improve BC accuracy in the observation sweep.
+
+12. **The literature slot is belief plus planning**
+    - HOP is the closest belief-search comparator.
+    - MAZero, MAMBA, MARIE, and MATWM test model-based MARL claims.
+    - MBOM and AORPO test the opponent-modeling claim.
+
+13. **Before submission, run the missing tests**
+    - Oracle planner.
+    - Switching prey.
+    - HOP baseline.
+    - Raw artifact archive.
 
 ## Reviewer Questions
 
-**Why does the planner beat the oracle?**
-The oracle condition is reactive with true intent. The inferred-belief condition
-has lookahead. An oracle planner is the real ceiling and should be run before
-submission.
+**Why can inferred belief planning exceed the oracle policy?**
+The oracle policy receives true intent but reacts. The belief planner searches
+short futures with simulator dynamics. An oracle planner would be the ceiling.
 
 **Is the opponent adaptive?**
-Not yet. The current prey draws a static intent per episode. That isolates the
-belief/planning mechanism, but switching or adaptive opponents are the next
-scientific upgrade.
+No. The current prey draws a static intent at reset. That is why switching prey
+appears on the closing slide.
 
-**Is the resource-axis latent a paper-level win?**
-Not alone. It shows that strategy information has downstream value, but the
-unsupervised latent is not yet as clean as the hidden-intent JEPA result.
+**Is the resource-axis latent a main result?**
+No. The resource-axis follow-up shows that strategy information has downstream
+value. The hidden-intent belief planner remains the main result.
 
-**Where does this sit in the literature?**
-HOP is the closest full-system comparison because it couples goal belief with
-MCTS. MAZero, MAMBA, MARIE, and MATWM are the model-based MARL line. MBOM and
-AORPO are the opponent-modeling line.
+**What is the closest literature comparison?**
+HOP is the closest full-system baseline because it combines goal belief and
+search. The other baseline groups test different parts of the claim.

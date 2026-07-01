@@ -52,5 +52,5 @@ Expected checks:
 
 | Artifact | Source | Notes |
 | --- | --- | --- |
-| `marl_opp_aware_results.pptx` | `scripts/build_deck.mjs` | 14-slide research talk with speaker notes. |
+| `marl_opp_aware_results.pptx` | `scripts/build_deck.mjs` | 13-slide research talk with speaker notes. |
 | `docs/PRESENTATION_NOTES.md` | Manual notes | Slide-by-slide talk track and reviewer answers. |
