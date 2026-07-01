@@ -9,6 +9,6 @@ checkpoint/rollout machinery there (see mopa.legacy) and provides the
 clean, seed-averaged, leakage-safe implementations used going forward.
 """
 
-from mopa import data, encoders, bc  # noqa: F401
-
 __version__ = "0.1.0"
+
+__all__ = ["__version__"]

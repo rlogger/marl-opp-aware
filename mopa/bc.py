@@ -20,6 +20,9 @@ import flax.linen as nn
 from flax.linen.initializers import orthogonal
 import optax
 
+from mopa.samples import build_predator_samples
+from mopa.splits import episode_validation_mask
+
 BC_HID = 128
 BC_STEPS = 4000
 BC_BATCH = 256
@@ -42,32 +45,12 @@ def build_samples(ds, ctx, ep_len=25, t_max=50):
     auto-reset boundary (velocity proxy invalid across the reset).
 
     Returns S (M, 19), A (M,), ep (M,)."""
-    prey, preds = ds["prey_pos"], ds["pred_pos"]        # (N,51,2), (N,51,3,2)
-    acts = ds["pred_act"]                               # (N,50,3)
-    N = len(prey)
-    steps = [t for t in range(ctx, t_max) if t != ep_len]
-    S, A, EP = [], [], []
-    for t in steps:
-        pos = np.concatenate([preds[:, t].reshape(N, 6), prey[:, t]], -1)
-        vel = pos - np.concatenate([preds[:, t - 1].reshape(N, 6),
-                                    prey[:, t - 1]], -1)
-        for p in range(3):
-            pid = np.zeros((N, 3), np.float32)
-            pid[:, p] = 1.0
-            S.append(np.concatenate([pos, vel, pid], -1))
-            A.append(acts[:, t, p])
-            EP.append(np.arange(N))
-    return (np.concatenate(S).astype(np.float32),
-            np.concatenate(A).astype(np.int32),
-            np.concatenate(EP).astype(np.int32))
+    return build_predator_samples(ds, ctx, t_max, ep_len=ep_len)
 
 
 def train_eval_bc(S, A, ep, rng_seed, val_frac=0.2, steps=BC_STEPS):
     """Episode-level split, train a BC net, return held-out accuracy."""
-    rng = np.random.RandomState(rng_seed)
-    eps = np.unique(ep)
-    val_eps = rng.choice(eps, int(len(eps) * val_frac), replace=False)
-    vmask = np.isin(ep, val_eps)
+    vmask = episode_validation_mask(ep, rng_seed=rng_seed, val_frac=val_frac)
     Str, Atr, Sva, Ava = S[~vmask], A[~vmask], S[vmask], A[vmask]
 
     mu, sd = Str.mean(0), Str.std(0) + 1e-6

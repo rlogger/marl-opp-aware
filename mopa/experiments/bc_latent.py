@@ -20,17 +20,16 @@ Outputs: plots/mopa_bc_latent_{alg}.png
          logs/MPE_simple_tag_v3/mopa_bc_latent_{alg}.npz
 """
 import argparse
-import os
 
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mopa import legacy
 from mopa.bc import bc_comparison
 from mopa.data import specialist_dataset, standardize, occupancy, EP_LEN
 from mopa.encoders import train_jepa, train_vae
+from mopa.paths import log_path, plot_path
 import jax
 
 
@@ -40,8 +39,6 @@ def main():
     ap.add_argument("--n_eps", type=int, default=200)
     ap.add_argument("--seeds", type=int, nargs="*", default=[0, 1, 2])
     args = ap.parse_args()
-
-    os.makedirs(legacy.PLOTDIR, exist_ok=True)
 
     print(f"rolling out specialists ({args.algorithm}, wp)...")
     ds = specialist_dataset(algorithm=args.algorithm, n_eps=args.n_eps)
@@ -62,7 +59,7 @@ def main():
         {"none": None, "z_vae": z_vae, "z_jepa": z_jepa, "oracle": oracle},
         ctx=EP_LEN + 1, seeds=tuple(args.seeds))
 
-    np.savez(os.path.join(legacy.LOGDIR, f"mopa_bc_latent_{args.algorithm}.npz"),
+    np.savez(log_path(f"mopa_bc_latent_{args.algorithm}.npz"),
              **{f"{k}_runs": v[2] for k, v in res.items()},
              **{f"{k}_mean": v[0] for k, v in res.items()},
              **{f"{k}_std": v[1] for k, v in res.items()},
@@ -90,7 +87,7 @@ def main():
                 f"{v:.3f}", ha="center", fontweight="bold", fontsize=9)
     ax.grid(alpha=0.3, axis="y")
     fig.tight_layout()
-    out = os.path.join(legacy.PLOTDIR, f"mopa_bc_latent_{args.algorithm}.png")
+    out = plot_path(f"mopa_bc_latent_{args.algorithm}.png")
     fig.savefig(out, dpi=140)
     plt.close(fig)
     print(f"saved {out}")

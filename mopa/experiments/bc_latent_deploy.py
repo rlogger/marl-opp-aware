@@ -21,8 +21,6 @@ metric that matters.
 Outputs: plots/mopa_bc_latent_deploy.png
          logs/MPE_simple_tag_v3/mopa_bc_latent_deploy.npz
 """
-import os
-
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -40,6 +38,7 @@ from mopa.data import standardize, occupancy
 from mopa.encoders import train_vae, probe_acc
 from mopa.experiments.bc_vs_mappo import set_wp, bc_features, train_bc
 from mopa.experiments.bc_latent_sweep import build_range
+from mopa.paths import log_path, plot_path
 
 PLACEMENTS = ("circle", "corners")
 EP_LEN = 25
@@ -101,7 +100,6 @@ def rollout(placement, pred_mode, prey_p, n_eps, rng,
 
 
 def main():
-    os.makedirs(legacy.PLOTDIR, exist_ok=True)
     set_wp(); G.NUM_STEPS = OBS
     seeds = (0, 1, 2)
 
@@ -167,8 +165,7 @@ def main():
     print(f"latent recovers {rec(M['latent'][0]):.0f}% and oracle "
           f"{rec(M['oracle'][0]):.0f}% of the pooled-BC -> MAPPO gap")
 
-    np.savez(os.path.join(legacy.LOGDIR, "mopa_bc_latent_deploy.npz"),
-             **{f"{k}": np.array(res[k]) for k in res})
+    np.savez(log_path("mopa_bc_latent_deploy.npz"), **{f"{k}": np.array(res[k]) for k in res})
 
     fig, ax = plt.subplots(figsize=(8.2, 4.7))
     order = ["random", "vanilla", "latent", "oracle", "mappo"]
@@ -186,7 +183,7 @@ def main():
         ax.text(b.get_x() + b.get_width() / 2, m + 0.03, f"{m:.2f}",
                 ha="center", fontweight="bold", fontsize=9)
     ax.grid(alpha=0.3, axis="y"); fig.tight_layout()
-    out = os.path.join(legacy.PLOTDIR, "mopa_bc_latent_deploy.png")
+    out = plot_path("mopa_bc_latent_deploy.png")
     fig.savefig(out, dpi=140); plt.close(fig)
     print(f"saved {out}")
 

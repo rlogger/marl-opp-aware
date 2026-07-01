@@ -22,17 +22,16 @@ Outputs: plots/mopa_latent_resources_{alg}_{team}.png
          logs/MPE_simple_tag_v3/mopa_latent_resources_{alg}_{team}.npz
 """
 import argparse
-import os
 
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mopa import legacy
 from mopa.data import (specialist_dataset, window, standardize, occupancy,
                        EP_LEN)
 from mopa.encoders import evaluate_encoders, probe_acc
+from mopa.paths import log_path, plot_path
 
 COL = {0: "#0d6e7a", 1: "#b85c10"}          # circle teal, corners orange
 LBL = {0: "circle", 1: "corners"}
@@ -79,7 +78,6 @@ def main():
     ap.add_argument("--enc_steps", type=int, default=5000)
     args = ap.parse_args()
 
-    os.makedirs(legacy.PLOTDIR, exist_ok=True)
     tag = f"{args.algorithm}_{args.team}"
     if args.features == "occupancy":
         tag += "_occ"
@@ -122,7 +120,7 @@ def main():
               f"vae {sweep['vae_probe'][-1]:.3f}  "
               f"jepa {sweep['jepa_probe'][-1]:.3f}")
 
-    np.savez(os.path.join(legacy.LOGDIR, f"mopa_latent_resources_{tag}.npz"),
+    np.savez(log_path(f"mopa_latent_resources_{tag}.npz"),
              sup=sup, label=y, ctx=args.ctx,
              vae_z=z_keep["vae"], jepa_z=z_keep["jepa"],
              **{k: v for k, v in summ.items()},
@@ -192,7 +190,7 @@ def main():
                  "unsupervised strategy latents, VAE vs JEPA",
                  fontweight="bold")
     fig.tight_layout()
-    out = os.path.join(legacy.PLOTDIR, f"mopa_latent_resources_{tag}.png")
+    out = plot_path(f"mopa_latent_resources_{tag}.png")
     fig.savefig(out, dpi=140)
     plt.close(fig)
     print(f"saved {out}")

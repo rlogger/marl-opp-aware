@@ -1,0 +1,7 @@
+# Minimal package/runtime dependencies for the reusable mopa package.
+numpy
+jax
+flax
+optax
+scikit-learn
+matplotlib

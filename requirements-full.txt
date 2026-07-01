@@ -1,0 +1,11 @@
+# Full research environment dependencies for rerunning experiments.
+-r requirements.txt
+hydra-core
+flashbax
+wandb
+distrax
+pillow
+
+# JaxMARL is developed as a sibling checkout in this project workflow:
+#   git clone https://github.com/FLAIROx/JaxMARL ../JaxMARL
+#   pip install -e ../JaxMARL

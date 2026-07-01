@@ -1,6 +1,7 @@
 # Adaptive Opponent Modeling for Adversarial Co-Training in MARL
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/rlogger/marl-opp-aware/actions/workflows/ci.yml/badge.svg)](https://github.com/rlogger/marl-opp-aware/actions/workflows/ci.yml)
 [![JAX](https://img.shields.io/badge/JAX-0.4-blue)](https://github.com/jax-ml/jax)
 [![Site](https://img.shields.io/badge/results-site-0d6e7a)](https://138-68-61-233.sslip.io)
 
@@ -16,6 +17,34 @@ Everything is JAX (JaxMARL / MPE), runs on a laptop CPU, 3 seeds throughout.
 
 - **Paper:** [`docs/intent_opponent_modeling.pdf`](docs/intent_opponent_modeling.pdf)
 - **Site:** https://138-68-61-233.sslip.io
+- **Minimal talk deck:** [`marl_opp_aware_results.pptx`](marl_opp_aware_results.pptx)
+- **Paper artifact guide:** [`docs/PAPER_ARTIFACT.md`](docs/PAPER_ARTIFACT.md)
+- **Results manifest:** [`docs/RESULTS_MANIFEST.md`](docs/RESULTS_MANIFEST.md)
+- **Reproducibility:** [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
+
+## Quick start
+
+For lightweight artifact review (no JAX/JaxMARL checkpoints required):
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+make check
+```
+
+For the full research environment:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-full.txt
+# Install JaxMARL as an editable sibling checkout, then:
+pip install -e .
+```
+
+The full experiments also need regenerated checkpoints under `logs/`, which are
+not tracked in git. See [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
 
 ## Headline result
 
@@ -50,6 +79,12 @@ python -m mopa.experiments.latent_resources --algorithm mappo --team pred
 
 # predator behaviour cloning: pi(a|s) vs pi(a|s,z) (episode-level split)
 python -m mopa.experiments.bc_latent --algorithm mappo
+
+# deployed-captures checks used in the presentation/paper artifact
+python -m mopa.experiments.bc_vs_mappo
+python -m mopa.experiments.bc_latent_sweep
+python -m mopa.experiments.bc_latent_deploy
+mopa-check-results
 ```
 
 `mopa.data` rolls out the placement specialists in their native envs with
@@ -58,6 +93,10 @@ init-conditioned featurisation removed it, which is why exp4/exp5's single-
 trajectory probes sat at chance). `mopa.encoders` is the validated VAE/JEPA
 pair with multi-seed evaluation; `mopa.bc` is leakage-safe BC (episode-level
 splits, conditioning never sees past the predicted step).
+
+For verification, see [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md):
+fast tests cover masking/splitting/sample construction, and `mopa-check-results`
+checks regenerated raw `.npz` metrics against paper-facing thresholds.
 
 ## Repository map
 
@@ -101,7 +140,9 @@ unit tests.
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e JaxMARL/ "flax==0.10.2" hydra-core flashbax wandb matplotlib distrax optax scikit-learn
+pip install -r requirements-full.txt
+pip install -e ../JaxMARL/
+pip install -e .
 
 # co-train the three conditions (MAPPO + CTDE, 3 seeds, ~2 min each)
 python src/mappo_teams_mlp.py alg=mappo_intent_unaware NUM_SEEDS=3
@@ -120,6 +161,15 @@ Trained checkpoints land in `logs/` and are **not** tracked in git — they are
 regenerated deterministically by the training commands above. Figures live in
 `plots/`; the papers (this study plus the Exp 4/5
 write-ups) are in `docs/`.
+
+## Publication artifact status
+
+This repository is suitable as a paper code artifact for the current controlled
+study: it includes source, figures, papers, tests, citation metadata, environment
+files, CI, and a result-check harness. The remaining publication upgrades are
+scientific rather than packaging-related: add adaptive/switching opponents, an
+oracle planner, and external baselines such as HOP, MAZero/MAMBA/MARIE/MATWM,
+MBOM, and AORPO.
 
 ## Setup
 

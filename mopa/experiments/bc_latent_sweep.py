@@ -18,18 +18,17 @@ actually carries the strategy -- i.e. the BC gain rises with the latent's probe.
 Outputs: plots/mopa_bc_latent_sweep.png
          logs/MPE_simple_tag_v3/mopa_bc_latent_sweep.npz
 """
-import os
-
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import jax
 
-from mopa import legacy
 from mopa.data import specialist_dataset, standardize, occupancy
 from mopa.encoders import train_vae, train_jepa, probe_acc
 from mopa.bc import train_eval_bc
+from mopa.paths import log_path, plot_path
+from mopa.samples import build_predator_samples
 
 EP_LEN = 25
 PREDICT = (125, 150)        # the held-out episode we clone in
@@ -40,25 +39,10 @@ LAT = 4
 def build_range(ds, t0, t1):
     """(state, action, rollout-id) for every predator at steps [t0, t1),
     skipping reset boundaries (velocity invalid there)."""
-    prey, preds, acts = ds["prey_pos"], ds["pred_pos"], ds["pred_act"]
-    N = len(prey)
-    steps = [t for t in range(t0, t1) if t % EP_LEN != 0]
-    S, A, EP = [], [], []
-    for t in steps:
-        pos = np.concatenate([preds[:, t].reshape(N, 6), prey[:, t]], -1)
-        vel = pos - np.concatenate([preds[:, t - 1].reshape(N, 6),
-                                    prey[:, t - 1]], -1)
-        for p in range(3):
-            pid = np.zeros((N, 3), np.float32); pid[:, p] = 1.0
-            S.append(np.concatenate([pos, vel, pid], -1))
-            A.append(acts[:, t, p]); EP.append(np.arange(N))
-    return (np.concatenate(S).astype(np.float32),
-            np.concatenate(A).astype(np.int32),
-            np.concatenate(EP).astype(np.int32))
+    return build_predator_samples(ds, t0, t1, ep_len=EP_LEN)
 
 
 def main():
-    os.makedirs(legacy.PLOTDIR, exist_ok=True)
     print("rolling out specialists (6 episodes each)...")
     ds = specialist_dataset(n_eps=150, num_steps=150)
     y = ds["label"]
@@ -96,7 +80,7 @@ def main():
               f"BC vae {rows['vae'][-1]:.4f}  jepa {rows['jepa'][-1]:.4f}  "
               f"(vanilla {vanilla[0]:.4f})")
 
-    np.savez(os.path.join(legacy.LOGDIR, "mopa_bc_latent_sweep.npz"),
+    np.savez(log_path("mopa_bc_latent_sweep.npz"),
              vanilla=np.array(vanilla), oracle=np.array(oracle_acc),
              **{k: np.array(v) for k, v in rows.items()})
 
@@ -114,7 +98,7 @@ def main():
                     textcoords="offset points", xytext=(0, 8), fontsize=7.5, ha="center")
     ax.grid(alpha=0.3); ax.legend(fontsize=8, loc="lower right")
     fig.tight_layout()
-    out = os.path.join(legacy.PLOTDIR, "mopa_bc_latent_sweep.png")
+    out = plot_path("mopa_bc_latent_sweep.png")
     fig.savefig(out, dpi=140); plt.close(fig)
     print(f"saved {out}")
 

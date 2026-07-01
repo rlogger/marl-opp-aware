@@ -19,6 +19,22 @@ dependencies = [
 [project.scripts]
 mopa-latent-resources = "mopa.experiments.latent_resources:main"
 mopa-bc-latent = "mopa.experiments.bc_latent:main"
+mopa-bc-latent-sweep = "mopa.experiments.bc_latent_sweep:main"
+mopa-bc-vs-mappo = "mopa.experiments.bc_vs_mappo:main"
+mopa-check-results = "mopa.results:main"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+full = [
+    "hydra-core",
+    "flashbax",
+    "wandb",
+    "distrax",
+    "pillow",
+]
 
 [tool.setuptools.packages.find]
 include = ["mopa*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

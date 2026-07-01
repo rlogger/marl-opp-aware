@@ -12,16 +12,14 @@ motivates placements that are genuinely different (circle vs a snake path).
 
 Output: plots/occupancy_heatmaps.png
 """
-import os
-
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Rectangle
 
-from mopa import legacy
 from mopa.data import specialist_dataset
+from mopa.paths import log_path, plot_path
 
 BINS = 24
 RNG = (-1.3, 1.3)
@@ -50,7 +48,6 @@ def draw_geom(ax, placement):
 
 
 def main():
-    os.makedirs(legacy.PLOTDIR, exist_ok=True)
     print("rolling out specialists (100 steps)...")
     ds = specialist_dataset(n_eps=150, num_steps=100)
     y = ds["label"]
@@ -84,10 +81,9 @@ def main():
     fig.suptitle("Are circle and corners genuinely different behaviours? "
                  "(mean prey occupancy, 150 episodes)", fontweight="bold")
     fig.tight_layout()
-    out = os.path.join(legacy.PLOTDIR, "occupancy_heatmaps.png")
+    out = plot_path("occupancy_heatmaps.png")
     fig.savefig(out, dpi=140); plt.close(fig)
-    np.savez(os.path.join(legacy.LOGDIR, "occupancy_heatmaps.npz"),
-             circle=gc, corners=gs, tv=tv, cosine=cos)
+    np.savez(log_path("occupancy_heatmaps.npz"), circle=gc, corners=gs, tv=tv, cosine=cos)
     print(f"saved {out}")
 
 

@@ -17,8 +17,6 @@ BC to MAPPO is the performance a strategy latent stands to recover.
 Outputs: plots/mopa_bc_vs_mappo.png
          logs/MPE_simple_tag_v3/mopa_bc_vs_mappo.npz
 """
-import os
-
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -34,6 +32,9 @@ from generate_trajectory_dataset_resources import (
     _make_env, split_teams, _params_path, ActorLogits, HIDDEN)
 from jaxmarl.wrappers.baselines import CTRolloutManager, MPELogWrapper, load_params
 from mopa.bc import BCNet, build_samples, BC_BATCH, BC_STEPS
+from mopa.paths import log_path, plot_path
+from mopa.samples import predator_state_features
+from mopa.splits import episode_validation_mask
 
 PLACEMENTS = ("circle", "corners")
 EP_LEN = 25
@@ -47,14 +48,7 @@ def set_wp():
 def bc_features(preds, prey, prev_preds, prev_prey):
     """preds (N,3,2), prey (N,2) at step t plus previous -> (N,3,19) matching
     mopa.bc.build_samples: [positions(8), velocity(8), predator-id(3)]."""
-    N = len(prey)
-    pos = np.concatenate([preds.reshape(N, 6), prey], -1)              # (N,8)
-    vel = pos - np.concatenate([prev_preds.reshape(N, 6), prev_prey], -1)
-    feats = np.zeros((N, 3, 19), np.float32)
-    for p in range(3):
-        pid = np.zeros((N, 3), np.float32); pid[:, p] = 1.0
-        feats[:, p] = np.concatenate([pos, vel, pid], -1)
-    return feats
+    return predator_state_features(preds, prey, prev_preds, prev_prey)
 
 
 def train_bc(S, A, seed=0, steps=BC_STEPS):
@@ -138,7 +132,6 @@ def rollout(placement, pred_mode, prey_params, n_eps, rng,
 
 
 def main():
-    os.makedirs(legacy.PLOTDIR, exist_ok=True)
     set_wp()
     seeds = (0, 1, 2)
     res = {m: {"circle": [], "corners": []}
@@ -168,10 +161,7 @@ def main():
         # held-out action match -- EPISODE-LEVEL split (all steps of an episode
         # in one fold, so highly-autocorrelated timesteps don't leak). The same
         # train split trains the clone deployed below.
-        rng_np = np.random.RandomState(0)
-        ueps = np.unique(ep)
-        veps = rng_np.choice(ueps, int(len(ueps) * 0.2), replace=False)
-        vmask = np.isin(ep, veps)
+        vmask = episode_validation_mask(ep, rng_seed=0, val_frac=0.2)
         net_bc, p_bc, mu, sd = train_bc(S[~vmask], A[~vmask])
         pred = np.asarray(net_bc.apply(p_bc, jnp.asarray((S[vmask] - mu) / sd))
                           ).argmax(-1)
@@ -202,7 +192,7 @@ def main():
           f"   BC recovers {keep:.0f}% of MAPPO-over-random; "
           f"action match {np.mean(match['circle']+match['corners']):.3f}")
 
-    np.savez(os.path.join(legacy.LOGDIR, "mopa_bc_vs_mappo.npz"),
+    np.savez(log_path("mopa_bc_vs_mappo.npz"),
              **{f"{m}_{p}": np.array(res[m][p])
                 for m in res for p in PLACEMENTS},
              match=np.array(match["circle"] + match["corners"]))
@@ -222,7 +212,7 @@ def main():
                 ha="center", fontweight="bold")
     ax.grid(alpha=0.3, axis="y")
     fig.tight_layout()
-    out = os.path.join(legacy.PLOTDIR, "mopa_bc_vs_mappo.png")
+    out = plot_path("mopa_bc_vs_mappo.png")
     fig.savefig(out, dpi=140); plt.close(fig)
     print(f"saved {out}")
 

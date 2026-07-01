@@ -1,58 +1,75 @@
-# Presentation — slide plan + speaker notes
+# Presentation Notes
 
-Results-focused. Metrics are **captures/episode (performance)**, not action
-accuracy. Each slide: what's on it, the figure, and what to say.
+Deck: `marl_opp_aware_results.pptx`
 
----
+The deck is intentionally minimal: eight audience-facing slides, with the
+technical defense in speaker notes and repository docs. The core message is that
+the project is strongest when framed as a controlled study of calibrated
+opponent belief plus planning, not as a broad solved-model-based-MARL result.
 
-### 1. Title
-**Adaptive Opponent Modeling for Adversarial Co-Training in MARL.** JAX / JaxMARL.
-> "The idea: infer the opponent's hidden strategy with calibrated uncertainty, and plan against it. I'll show results, then the behaviour-cloning follow-up from last time."
+## One-Sentence Positioning
 
-### 2. The task — hidden strategy *(fig: demo_jepa.gif)*
-> "Three predators chase one prey. Each episode the prey secretly picks one of four corners to haunt; the predators can't see which, they infer it from motion. Left is intent-blind and just chases; right infers the corner and intercepts. The strategy lives *inside* the opponent, not on the map."
+In a controlled hidden-intent predator-prey game, maintaining a calibrated
+belief over the opponent's strategy and sampling that belief in a planner is
+materially stronger than reacting to no model or to a hard guessed intent.
 
-### 3. Headline ladder — captures/episode *(fig: part2_intent_eval.png)*
-Numbers: blind 2.68 · wrong-guess 1.42 (−47%) · hard-inferred 2.56 (−5%) · reactive belief 2.82 (+5%) · planner-flat 3.07 · oracle 4.05 (+51%) · **planner+belief 4.31 (+61%)**.
-> "Each row isolates one thing. The key one: a confident *wrong* guess is worse than knowing nothing — minus 47 percent. So you can't act on a point estimate; you carry the whole belief. Planning on the belief gets 4.31 captures, +61% over blind."
+## Slide Flow
 
-### 4. Planning beats the oracle *(fig: part2_planner.png)*
-> "The planner at 4.31 beats even the oracle that's *handed* the true strategy, 4.05 — because planning lets you pre-position, and lookahead beats reacting even with perfect info. The belief itself contributes +40% over a flat-belief planner."
+1. **Adaptive Opponent Modeling for MARL**
+   - Anchor the audience on the three numbers: 4.31 captures for inferred-belief
+     planning, -47% for a wrong hard intent, and zero labels for the JEPA belief.
 
-### 5. The encoder — predict, don't reconstruct *(fig: jepa_vs_vae_encoder.png)*
-> "How do we get the belief cheaply? A JEPA encoder that predicts the future representation instead of reconstructing. On this task it recovers the strategy at probe 0.89 versus a VAE's 0.53, matching a supervised classifier — with no labels. Its label-free belief drives the planner to 4.08."
+2. **The experiment isolates one question**
+   - The prey sees a hidden corner intent; predators infer it from early motion.
+   - State the boundary early: static intent within each episode.
 
-### 6. Honest negative — JEPA as a world model *(fig: part4_jepa_world_planner.png)*
-> "The same predict-don't-reconstruct idea *fails* as a planning world model — 0.57 captures. Encoders want to discard noise; a world model needs accurate dynamics. Opposite requirements. I report it straight."
+3. **The belief becomes useful evidence quickly**
+   - Accuracy rises from 0.37 to 0.97 as more prey steps are observed.
+   - Wrong confident intent is worse than being blind.
 
-### 7. Second axis — circle vs corners: "are circles just squares?" *(fig: occupancy_heatmaps.png)* ★ NEW
-> "Someone asked whether circle and corners are even different behaviours — technically 4 resources on a circle *is* a square of points. So I looked at where each prey actually spends time. The corners prey is sharp — four crisp hot-spots. The circle prey is diffuse — a smeared ring, no crisp peaks. They're different, cosine 0.42, but asymmetric: the circle behaviour is weak and spread out. That diffuseness is exactly why it's hard to separate — and it motivates trying a genuinely distinct placement, like a snake path."
+4. **Planning over the belief is the core result**
+   - Flat-belief planner: 3.07 captures/episode.
+   - Reactive oracle: 4.05.
+   - Inferred-belief planner: 4.31.
+   - Say "reactive oracle," not "oracle planner."
 
-### 8. Circle vs corners — can an encoder recover it? *(fig: mopa_latent_resources_mappo_prey_occ.png)*
-> "Same Part-1 question here. The axes are the 2-D latent (or PC1/PC2 when higher-D); each point is one episode's occupancy embedding, colored by placement — the encoder never sees the color. Result: the placement is *linearly decodable* — supervised probe 0.93, latents up to 0.81 — but it does **not cluster**, ARI near zero. Signal yes, separated modes no. That's the open problem."
+5. **JEPA makes the belief label-free**
+   - JEPA beats VAE on the same trajectory signal without intent labels.
+   - This is the bridge to self-supervised opponent representation learning.
 
-### 9. Does BC even clone the expert? — CAPTURES *(fig: mopa_bc_vs_mappo.png)*
-> "Before asking if a latent helps, is BC a faithful clone? Deployed in the game, vanilla BC gets 1.22 captures; the MAPPO expert it copies gets 1.35; random is 0.40. So BC recovers **86%** of the expert's edge — cloning isn't the bottleneck. The 14% gap is the room a strategy signal could fill."
+6. **The main caveat is dynamics, not representation**
+   - The learned latent world planner is weak.
+   - This narrows the paper claim to belief and planning with simulator
+     dynamics, while identifying the next engineering risk.
 
-### 10. Latent-conditioned BC — CAPTURES *(fig: mopa_bc_latent_deploy.png)* ★
-> "Condition a placement-blind clone on the prey-strategy latent and measure captures. Placement-blind 0.95, plus the latent 0.99, plus the *true* placement 1.11, expert 1.14. So knowing the placement recovers **85%** of the gap between a placement-blind clone and the expert — the strategy is hugely valuable for performance. Our unsupervised latent recovers about **22%** so far — and I'll be honest, that 22% is within the error bars. The ceiling is high; the encoder isn't there yet. That's the clustering problem."
+7. **The BC follow-up says strategy information has value**
+   - BC is a credible clone, so imitation is not the bottleneck.
+   - Oracle strategy information helps; today's unsupervised resource latent is
+     still modest and noisy.
 
-### 10b. Why it should work — encoder quality is the lever *(fig: mopa_bc_latent_sweep.png)*
-> "On action accuracy, with a per-episode latent, the story is cleaner: as the encoder watches longer its probe climbs 0.60→0.78 and BC tracks it right up to the oracle. So a better encoder is the lever. Caveat: the placement is fixed, so 'more observation' means a better occupancy *estimate* — averaging — not the strategy unfolding."
+8. **What to say, and what not to overclaim**
+   - Claim: calibrated opponent belief matters for planning.
+   - Caveat: static per-episode opponents, simulator planner, reactive oracle.
+   - Next: adaptive opponents and baselines from HOP, MAZero/MAMBA/MARIE/MATWM,
+     MBOM, and AORPO.
 
-### 11. Honest mechanism — is the gain just averaging? ★ NEW
-> "A fair question: the latent improves as it watches longer — is that the *strategy*, or just averaging over more episodes? Honest answer: here the placement is **fixed** across a specialist's episodes, so more observation gives a better *occupancy estimate* — it's estimation quality, statistical averaging, not the strategy unfolding. That's different from the hidden-intent task, where the intent genuinely *is* revealed over time. So I call it a scaling-with-observation result, and I don't overclaim."
+## Reviewer Questions
 
-### 12. Where vanilla BC struggles *(fig: demo_bc.gif)* ★
-> "The concrete failure: on a *corners* episode, a placement-blind clone sees the prey drifting and can't tell if it's committing to that corner or just passing through, so it hedges and the prey reaches its spot. Knowing the placement turns hedging into interception."
+**Why does the planner beat the oracle?**
+The oracle condition is reactive with true intent. The inferred-belief condition
+has lookahead. An oracle planner is the real ceiling and should be run before
+submission.
 
-### 13. How the plots are generated
-> "Every result: 3 seeds, episode-level splits, leakage-checked. Occupancy = normalized 8×8 histogram of where the prey goes. The supervised probe is a cross-validated logistic regression *with* labels — the ceiling. The latent probe swaps the input for the encoder's 2–4-D output. Full procedures in METHODS.md."
+**Is the opponent adaptive?**
+Not yet. The current prey draws a static intent per episode. That isolates the
+belief/planning mechanism, but switching or adaptive opponents are the next
+scientific upgrade.
 
-### 14. Next steps
-> "One: replace the diffuse circle with a genuinely distinct placement — a snake path — so the two behaviours actually form clusters. Two: shape the latent to cluster — contrastive identity grounding (CTR) or equivariance. Three: everything in captures, deployed, not action accuracy."
+**Is the resource-axis latent a paper-level win?**
+Not alone. It shows that strategy information has downstream value, but the
+unsupervised latent is not yet as clean as the hidden-intent JEPA result.
 
----
-
-**Do NOT compare absolute heights across the BC figures** (bc_vs_mappo captures vs the accuracy figures) — different metrics, different experiments.
-**If asked why VAE not JEPA on occupancy:** occupancy already removed the evasion noise JEPA exploits, so the generative VAE wins here; on raw-trajectory intent, JEPA wins 0.89 vs 0.53. Winner depends on the feature.
+**Where does this sit in the literature?**
+HOP is the closest full-system comparison because it couples goal belief with
+MCTS. MAZero, MAMBA, MARIE, and MATWM are the model-based MARL line. MBOM and
+AORPO are the opponent-modeling line.
