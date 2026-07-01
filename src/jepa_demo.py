@@ -118,55 +118,74 @@ def main():
         env_un, load_params(PE.apath("mappo_intent_unaware", "prey", 0)),
         load_params(PE.apath("mappo_intent_unaware", "pred", 0)), 96, jax.random.PRNGKey(11), False)
 
-    # pick an episode: JEPA belief ends correct+confident and predators catch the prey
+    # lengthened, detailed demo: one strong episode PER corner, played back to back,
+    # so all four intents and the belief sharpening are visible.
     correct = bel_b[:, -1].argmax(1) == int_b
     score = correct.astype(float) * (bel_b[:, -1].max(1) + 0.3 * cap_b)
-    e = int(np.argmax(score))
-    gi = int(int_b[e])
-    print(f"  episode {e}: intent {gi}, captures {cap_b[e]:.0f}, "
-          f"final belief {bel_b[e,-1].round(2)}")
+    eps = []
+    for g in range(4):
+        cand = np.where(int_b == g)[0]
+        if len(cand):
+            eps.append(int(cand[np.argmax(score[cand])]))
+    if not eps:
+        eps = [int(np.argmax(score))]
+    print(f"  demo episodes {eps}  intents {[int(int_b[e]) for e in eps]}")
+    CNAMES = ["SW", "NW", "SE", "NE"]
 
-    fig = plt.figure(figsize=(11.5, 6.4)); fig.patch.set_facecolor(BG)
-    axL = fig.add_axes([0.03, 0.16, 0.44, 0.76]); axR = fig.add_axes([0.50, 0.16, 0.44, 0.76])
-    axb = fig.add_axes([0.50, 0.045, 0.44, 0.075])
+    fig = plt.figure(figsize=(11.5, 6.7)); fig.patch.set_facecolor(BG)
+    axL = fig.add_axes([0.03, 0.15, 0.44, 0.74]); axR = fig.add_axes([0.50, 0.15, 0.44, 0.74])
+    axb = fig.add_axes([0.50, 0.045, 0.44, 0.065])
     setup(axL, "intent-blind predators (hedge)")
     setup(axR, "JEPA-belief predators (infer + intercept)")
-    for ax in (axL, axR):
-        ax.scatter(*CORNERS[gi], s=260, marker="*", c=CORNER_COLS[gi], edgecolors="k", zorder=6)
+    starL = axL.scatter([0], [0], s=280, marker="*", c="#111", zorder=6)
+    starR = axR.scatter([0], [0], s=280, marker="*", c="#111", zorder=6)
+    e0 = eps[0]
 
     def make(ax, pxy, dxy):
-        pc = ax.add_patch(Circle(pxy[e, 0], 0.05, color=PREY, ec="white", lw=1, zorder=10))
-        dc = [ax.add_patch(Circle(dxy[e, 0, i], 0.075, color=PRED, ec="white", lw=1, zorder=10))
+        pc = ax.add_patch(Circle(pxy[e0, 0], 0.05, color=PREY, ec="white", lw=1, zorder=10))
+        dc = [ax.add_patch(Circle(dxy[e0, 0, i], 0.075, color=PRED, ec="white", lw=1, zorder=10))
               for i in range(3)]
         tr, = ax.plot([], [], "-", color=PREY, alpha=0.4, lw=2)
         return pc, dc, tr
     pcL, dcL, trL = make(axL, pxy_u, dxy_u)
     pcR, dcR, trR = make(axR, pxy_b, dxy_b)
-    jx = axR.scatter([pred_b[e, 0, 0]], [pred_b[e, 0, 1]], s=170, marker="X",
+    jx = axR.scatter([pred_b[e0, 0, 0]], [pred_b[e0, 0, 1]], s=170, marker="X",
                      facecolors="none", edgecolors="#111", linewidths=2, zorder=12,
                      label="JEPA's predicted destination")
     axR.legend(loc="upper left", fontsize=8, framealpha=0.85)
+    caption = fig.text(0.5, 0.955, "", ha="center", fontsize=12, fontweight="bold")
 
     axb.set_xlim(-0.5, 3.5); axb.set_ylim(0, 1); axb.set_xticks(range(4))
-    axb.set_xticklabels(["SW", "NW", "SE", "NE"], fontsize=8); axb.set_yticks([])
+    axb.set_xticklabels(CNAMES, fontsize=8); axb.set_yticks([])
     axb.set_title("JEPA belief over corners (label-free)", fontsize=9)
     bars = axb.bar(range(4), [0.25] * 4, color=CORNER_COLS)
-    T = pxy_b.shape[1]
 
-    def upd(t):
+    T = pxy_b.shape[1]
+    HOLD = 6                                   # linger at the capture
+    per = T + HOLD
+    frames = per * len(eps)
+
+    def upd(f):
+        k = min(f // per, len(eps) - 1); e = eps[k]
+        t = min(f - k * per, T - 1)
+        gi = int(int_b[e])
+        starL.set_offsets([CORNERS[gi]]); starR.set_offsets([CORNERS[gi]])
         for pc, dc, tr, pxy, dxy in [(pcL, dcL, trL, pxy_u, dxy_u), (pcR, dcR, trR, pxy_b, dxy_b)]:
             pc.center = pxy[e, t]
             for i in range(3):
                 dc[i].center = dxy[e, t, i]
-            lo = max(0, t - 10); tr.set_data(pxy[e, lo:t + 1, 0], pxy[e, lo:t + 1, 1])
+            lo = max(0, t - 12); tr.set_data(pxy[e, lo:t + 1, 0], pxy[e, lo:t + 1, 1])
         ti = min(t, bel_b.shape[1] - 1)
         jx.set_offsets([pred_b[e, ti]])
         for j, bar in enumerate(bars):
             bar.set_height(bel_b[e, ti, j])
-    ani = animation.FuncAnimation(fig, upd, frames=T, interval=180)
+        conf = bel_b[e, ti].max()
+        caption.set_text(f"episode {k+1}/{len(eps)}   ·   true corner {CNAMES[gi]}   "
+                         f"·   step {t+1}/{T}   ·   JEPA belief {conf:.0%} confident")
+    ani = animation.FuncAnimation(fig, upd, frames=frames, interval=200)
     out = os.path.join(PLOTDIR, "demo_jepa.gif")
-    ani.save(out, writer="pillow", fps=6, dpi=110); plt.close(fig)
-    print(f"saved {out} ({os.path.getsize(out)/1024:.0f} KB)")
+    ani.save(out, writer="pillow", fps=5, dpi=118); plt.close(fig)
+    print(f"saved {out} ({os.path.getsize(out)/1024:.0f} KB, {frames} frames)")
 
 
 if __name__ == "__main__":
