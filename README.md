@@ -15,13 +15,6 @@ latent strategy with **calibrated uncertainty** (Part 1) and **plan against it**
 
 Everything is JAX (JaxMARL / MPE), runs on a laptop CPU, 3 seeds throughout.
 
-- **Paper:** [`docs/intent_opponent_modeling.pdf`](docs/intent_opponent_modeling.pdf)
-- **Site:** https://138-68-61-233.sslip.io
-- **Minimal talk deck:** [`marl_opp_aware_results.pptx`](marl_opp_aware_results.pptx)
-- **Paper artifact guide:** [`docs/PAPER_ARTIFACT.md`](docs/PAPER_ARTIFACT.md)
-- **Results manifest:** [`docs/RESULTS_MANIFEST.md`](docs/RESULTS_MANIFEST.md)
-- **Reproducibility:** [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
-
 ## Quick start
 
 For lightweight artifact review (no JAX/JaxMARL checkpoints required):
