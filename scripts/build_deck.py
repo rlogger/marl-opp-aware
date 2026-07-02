@@ -428,7 +428,55 @@ def main():
               "opponents and external baselines.",
            0.7, 5.2, 12.0, 1.0, size=18, bold=True, color=INK)
 
-    # 19 · close
+    # 19-20 · anticipated questions (defend every plot)
+    qa_pages = [
+        [("Beating the oracle looks too good — is it real?",
+          "It exceeds a REACTIVE oracle (true intent, no lookahead). Planning "
+          "pre-positions, so 4.31 > 4.05. An oracle PLANNER is the true ceiling, "
+          "and it's on the to-run list."),
+         ("Why does an honestly inferred hard intent (2.56) lose to blind (2.68)?",
+          "The argmax at k=8 is ~74% accurate; committing to a wrong corner "
+          "costs more than hedging. That's the whole case for carrying the "
+          "distribution, not a point estimate."),
+         ("Probe vs ARI — what's the difference?",
+          "Probe = can a LINEAR readout with labels decode the latent (chance "
+          "0.25). ARI = does it cluster WITHOUT labels. On intent both are high; "
+          "on circle-vs-corners only the probe is."),
+         ("Isn't JEPA just a better-tuned VAE?",
+          "Same data, latent size, and budget. JEPA predicts the future "
+          "representation (no decoder); the VAE reconstructs. The gap (0.89 vs "
+          "0.53) is the objective, not the tuning.")],
+        [("Aren't circles just squares? (the meeting challenge)",
+          "Geometrically yes — 4 points on a circle are a small square. "
+          "Behaviourally no: corners commit to 4 sharp spots, the circle smears "
+          "a diffuse ring (cosine 0.42). The circle signal is just weak."),
+         ("If it's decodable (0.93), why doesn't it cluster (ARI≈0)?",
+          "Linear separability ≠ two modes. The placement is a DIRECTION in "
+          "latent space, not two blobs. Shaping it to cluster (contrastive / "
+          "equivariant) is the open problem."),
+         ("Is the latent-BC sweep gain just averaging over more episodes?",
+          "Largely yes, and I say so: the placement is FIXED, so longer "
+          "observation is a better occupancy ESTIMATE, not a strategy "
+          "unfolding. It's a scaling-with-observation result."),
+         ("The BC-failure GIF — cherry-picked?",
+          "Deliberately: tail episodes chosen to show the mechanism. The "
+          "average is the table (86% recovery, +2.4 accuracy pts). The GIF "
+          "explains WHY, the table is the claim.")],
+    ]
+    for pi, page in enumerate(qa_pages):
+        s = d.slide("Anticipated questions — answer crisply, then stop. These are "
+                    "the sharpest ones the plots invite; each answer concedes "
+                    "what's honest and states the claim precisely. Full set with "
+                    "figures on the /present page's Figure guide.")
+        d.title(s, "Questions they'll ask" + (" (cont.)" if pi else ""),
+                "Defense" if pi == 0 else "Defense")
+        y = 1.55
+        for q, a in page:
+            d.text(s, "Q  " + q, 0.7, y, 12.0, 0.5, size=16, bold=True, color=ACCENT)
+            d.text(s, "A  " + a, 0.7, y + 0.5, 12.0, 0.8, size=14, color=MUTED)
+            y += 1.42
+
+    # 21 · close
     s = d.slide("Close on specific work. The repo has code hygiene, tests, "
                 "result checks, and this deck. The scientific gap is the "
                 "next experiment set: the oracle planner ceiling, a "
